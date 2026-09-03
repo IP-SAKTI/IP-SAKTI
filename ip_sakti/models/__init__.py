@@ -1,6 +1,12 @@
 """ip_sakti.models — Pydantic data model package."""
 
 from ip_sakti.models.document import DocumentMetadata, KnowledgeDocument
+from ip_sakti.models.multilingual import (
+    DetectionResult,
+    MultilingualContext,
+    NormalisationResult,
+    TranslationResult,
+)
 from ip_sakti.models.query import (
     AgentResult,
     AgentType,
@@ -20,6 +26,11 @@ __all__ = [
     # Document models
     "DocumentMetadata",
     "KnowledgeDocument",
+    # Multilingual models
+    "DetectionResult",
+    "MultilingualContext",
+    "NormalisationResult",
+    "TranslationResult",
     # Enums
     "AgentType",
     "FormulationCategory",
