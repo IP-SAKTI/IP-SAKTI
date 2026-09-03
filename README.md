@@ -52,40 +52,60 @@ Validation Pydantic + Citation Validation
 Logging Python Structured Logging
 Deployment Docker
 
-Architecture
+## Architecture
 
+```text
 User
-↓
+ │
+ ▼
 Language Detection
-↓
+ │
+ ▼
 Query Normalization
-↓
+ │
+ ▼
 Orchestrator
-↓
-Intent + Jurisdiction + Classification
-↓
-Specialist Agents
-├── IP Agent
-├── Regulatory Agent
-└── TK/ABS Agent
-↓
-Hybrid Retrieval
-├── FAISS
-└── BM25
-↓
-RRF
-↓
-Cross-Encoder Reranking
-↓
-Evidence
-↓
-LLM Reasoning
-↓
-Citation Validation
-↓
-Translation
-↓
-User
+ │
+ ├──────────────┬──────────────┐
+ ▼              ▼              ▼
+Intent       Jurisdiction   Classification
+ │              │              │
+ └──────────────┴──────────────┘
+                │
+                ▼
+         Specialist Agents
+        ┌────────┼─────────┐
+        ▼        ▼         ▼
+     IP Agent  Regulatory  TK/ABS
+                Agent       Agent
+        └────────┼─────────┘
+                 ▼
+         Hybrid Retrieval
+          ┌──────┴──────┐
+          ▼             ▼
+        FAISS          BM25
+          │             │
+          └──────┬──────┘
+                 ▼
+                RRF
+                 │
+                 ▼
+       Cross-Encoder Reranking
+                 │
+                 ▼
+              Evidence
+                 │
+                 ▼
+           LLM Reasoning
+                 │
+                 ▼
+         Citation Validation
+                 │
+                 ▼
+            Translation
+                 │
+                 ▼
+                User
 
 Knowledge Sources
 
@@ -118,3 +138,4 @@ Smart India Hackathon 2026 --- Problem Statement 26045
 
 Project: IP-SAKTI Sahayak
 Theme: MedTech / BioTech / HealthTech
+```
