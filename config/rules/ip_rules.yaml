@@ -1,0 +1,29 @@
+# =============================================================================
+# IP-SAKTI Sahayak — IP Agent Rules
+# Loaded by the Rule Engine (Stage 4).
+#
+# Schema per rule:
+#   id:          unique rule identifier (string)
+#   description: human-readable explanation
+#   conditions:  list of key-value pairs that must all match the QueryContext
+#   actions:     list of directives emitted when all conditions are met
+#                  - route_to_agent: <agent_id>
+#                  - set_flag: <flag_name>
+#                  - require_jurisdiction: <jurisdiction_id>
+#                  - add_filter: <filter_name>
+# =============================================================================
+
+rules: []
+
+# Example (uncomment and expand in Stage 4):
+# rules:
+#   - id: ip_patent_india
+#     description: >
+#       Route patent queries with Indian jurisdiction to the IP Agent
+#       and apply the India-specific patent filter.
+#     conditions:
+#       - intent: ip
+#       - jurisdiction: india
+#     actions:
+#       - route_to_agent: ip_agent
+#       - add_filter: patent_india

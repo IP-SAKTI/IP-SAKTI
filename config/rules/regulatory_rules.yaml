@@ -1,0 +1,33 @@
+# =============================================================================
+# IP-SAKTI Sahayak — Regulatory Agent Rules
+# Loaded by the Rule Engine (Stage 4).
+#
+# Schema per rule:
+#   id:          unique rule identifier (string)
+#   description: human-readable explanation
+#   conditions:  list of key-value pairs that must all match the QueryContext
+#                  - intent: regulatory
+#                  - jurisdiction: india | international | both
+#                  - formulation_category: classical | proprietary | new_drug |
+#                                         phytopharmaceutical | nutraceutical | cosmetic
+#   actions:     list of directives emitted when all conditions are met
+#                  - route_to_agent: <agent_id>
+#                  - set_flag: <flag_name>
+#                  - add_filter: <filter_name>
+# =============================================================================
+
+rules: []
+
+# Example (uncomment and expand in Stage 4):
+# rules:
+#   - id: regulatory_classical_india
+#     description: >
+#       Route regulatory queries about classical Ayurvedic medicines in India
+#       to the Regulatory Agent with the Drugs & Cosmetics Act filter.
+#     conditions:
+#       - intent: regulatory
+#       - jurisdiction: india
+#       - formulation_category: classical
+#     actions:
+#       - route_to_agent: regulatory_agent
+#       - add_filter: drugs_cosmetics_act_india

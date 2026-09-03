@@ -1,0 +1,91 @@
+# =============================================================================
+# IP-SAKTI Sahayak — Docker Compose
+#
+# Defines two services:
+#   api   — FastAPI backend  (port 8000)
+#   ui    — Streamlit frontend (port 8501)
+#
+# Shared volumes:
+#   ip_sakti_indexes  — FAISS and BM25 index files  (never committed)
+#   ip_sakti_db       — SQLite database file        (never committed)
+#   ip_sakti_data     — Knowledge base documents    (never committed)
+#   ip_sakti_logs     — Application logs            (never committed)
+#
+# Usage:
+#   cp .env.example .env  && <fill in GEMINI_API_KEY>
+#   docker-compose up --build
+# =============================================================================
+
+version: "3.9"
+
+services:
+
+  # ── FastAPI Backend ──────────────────────────────────────────────────────────
+  api:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.api
+    image: ip-sakti-api:latest
+    container_name: ip_sakti_api
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      # These can be overridden in .env
+      - API_HOST=0.0.0.0
+      - API_PORT=8000
+      - LOG_FORMAT=json
+      - INDEX_DIR=/app/indexes/
+      - DB_DIR=/app/db/
+      - DATA_DIR=/app/data/
+    ports:
+      - "8000:8000"
+    volumes:
+      - ip_sakti_indexes:/app/indexes
+      - ip_sakti_db:/app/db
+      - ip_sakti_data:/app/data
+      - ip_sakti_logs:/app/logs
+    healthcheck:
+      test: ["CMD", "python", "-c",
+             "import httpx; httpx.get('http://localhost:8000/health').raise_for_status()"]
+      interval: 30s
+      timeout: 10s
+      start_period: 60s
+      retries: 3
+    networks:
+      - ip_sakti_net
+
+  # ── Streamlit UI ─────────────────────────────────────────────────────────────
+  ui:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.ui
+    image: ip-sakti-ui:latest
+    container_name: ip_sakti_ui
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      - API_BASE_URL=http://api:8000
+      - LOG_FORMAT=json
+    ports:
+      - "8501:8501"
+    volumes:
+      - ip_sakti_logs:/app/logs
+    depends_on:
+      api:
+        condition: service_healthy
+    networks:
+      - ip_sakti_net
+
+# ── Named volumes (data persists between container restarts) ──────────────────
+volumes:
+  ip_sakti_indexes:
+  ip_sakti_db:
+  ip_sakti_data:
+  ip_sakti_logs:
+
+# ── Network ───────────────────────────────────────────────────────────────────
+networks:
+  ip_sakti_net:
+    driver: bridge

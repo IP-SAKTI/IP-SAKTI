@@ -1,0 +1,139 @@
+# =============================================================================
+# IP-SAKTI Sahayak — Master Configuration
+# All tuneable values live here.  Override individual values via environment
+# variables (see .env.example).  Do NOT hard-code secrets here.
+# =============================================================================
+
+# ── Application metadata ──────────────────────────────────────────────────────
+app:
+  name: "IP-SAKTI Sahayak"
+  description: "Multilingual AI Assistant for IP and Regulatory Guidance in Ayurveda"
+  version: "0.1.0"
+  disclaimer: >
+    This system is an informational decision-support assistant only.
+    It does not replace professional legal, regulatory, or IP advice.
+
+# ── Logging ───────────────────────────────────────────────────────────────────
+logging:
+  level: "INFO"          # DEBUG | INFO | WARNING | ERROR | CRITICAL
+  format: "json"         # json | text
+  log_dir: "logs/"
+
+# ── Paths ─────────────────────────────────────────────────────────────────────
+paths:
+  data_dir: "data/"
+  index_dir: "indexes/"
+  db_dir: "db/"
+  db_name: "ip_sakti.db"
+
+# ── ML Models ─────────────────────────────────────────────────────────────────
+models:
+  # Multilingual sentence-transformer for dense retrieval
+  embedding_model: "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
+
+  # Cross-encoder for evidence reranking
+  cross_encoder_model: "cross-encoder/ms-marco-MiniLM-L-6-v2"
+
+  # LLM for answer generation (Gemini via API)
+  # Model name is also controllable via GEMINI_MODEL env var
+  llm_provider: "gemini"
+  llm_model: "gemini-1.5-flash"
+
+  # Language detection library
+  lang_detect_library: "langdetect"
+
+  # Minimum langdetect confidence below which we treat query as English
+  lang_detect_min_confidence: 0.5
+
+# ── Retrieval ─────────────────────────────────────────────────────────────────
+retrieval:
+  # Candidates fetched from FAISS before RRF fusion
+  faiss_top_k: 20
+
+  # Candidates fetched from BM25 before RRF fusion
+  bm25_top_k: 20
+
+  # Final top-k evidence chunks after cross-encoder reranking
+  rerank_top_k: 5
+
+  # RRF rank-constant (standard value: 60)
+  rrf_k: 60
+
+# ── Safety & confidence ───────────────────────────────────────────────────────
+safety:
+  # Score below which safe abstention is triggered (0.0–1.0)
+  confidence_threshold: 0.5
+
+  # Minimum number of cited evidence chunks required for a confident answer
+  min_evidence_chunks: 2
+
+# ── API server ────────────────────────────────────────────────────────────────
+api:
+  host: "0.0.0.0"
+  port: 8000
+  workers: 1
+
+# ── Streamlit UI ──────────────────────────────────────────────────────────────
+ui:
+  api_base_url: "http://api:8000"   # Docker service name; override for local dev
+
+# ── Formulation categories (used by formulation classifier) ───────────────────
+formulation_categories:
+  - id: classical
+    label: "Classical / Generic Ayurvedic Medicine"
+  - id: proprietary
+    label: "Proprietary Medicine"
+  - id: new_drug
+    label: "New / Non-Classical Drug"
+  - id: phytopharmaceutical
+    label: "Phytopharmaceutical"
+  - id: nutraceutical
+    label: "Ayurveda-Aahar / Nutraceutical"
+  - id: cosmetic
+    label: "Cosmetic"
+  - id: unknown
+    label: "Not specified / Unknown"
+
+# ── Jurisdiction options ──────────────────────────────────────────────────────
+jurisdictions:
+  - id: india
+    label: "India"
+  - id: international
+    label: "International"
+  - id: both
+    label: "India + International"
+
+# ── Knowledge base sources (for provenance tracking) ─────────────────────────
+knowledge_sources:
+  - id: ip_india
+    name: "IP India"
+    url: "https://www.ipindia.gov.in"
+    authority: "Office of the Controller General of Patents, Designs and Trade Marks"
+  - id: wipo
+    name: "WIPO"
+    url: "https://www.wipo.int"
+    authority: "World Intellectual Property Organization"
+  - id: india_code
+    name: "India Code"
+    url: "https://www.indiacode.nic.in"
+    authority: "Legislative Department, Ministry of Law and Justice, India"
+  - id: ayush
+    name: "Ministry of AYUSH"
+    url: "https://www.ayush.gov.in"
+    authority: "Ministry of Ayurveda, Yoga & Naturopathy, Unani, Siddha and Homeopathy"
+  - id: ccras
+    name: "CCRAS"
+    url: "https://www.ccras.nic.in"
+    authority: "Central Council for Research in Ayurvedic Sciences"
+  - id: ayush_research
+    name: "AYUSH Research Portal"
+    url: "https://ayushportal.nic.in"
+    authority: "Ministry of AYUSH"
+  - id: pubmed
+    name: "PubMed / NCBI"
+    url: "https://pubmed.ncbi.nlm.nih.gov"
+    authority: "National Center for Biotechnology Information, NIH"
+  - id: gbif
+    name: "GBIF"
+    url: "https://www.gbif.org"
+    authority: "Global Biodiversity Information Facility"

@@ -1,0 +1,48 @@
+# =============================================================================
+# IP-SAKTI Sahayak — FastAPI Backend Dockerfile
+# Python 3.11-slim base; production-ready layer caching.
+# =============================================================================
+
+FROM python:3.11-slim AS base
+
+# Build arguments
+ARG APP_USER=appuser
+ARG APP_UID=1000
+
+# System dependencies (minimal; add only what sentence-transformers/FAISS need)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        build-essential \
+        libgomp1 \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create non-root user
+RUN groupadd --gid ${APP_UID} ${APP_USER} \
+    && useradd --uid ${APP_UID} --gid ${APP_UID} --no-create-home ${APP_USER}
+
+WORKDIR /app
+
+# ── Install Python dependencies ───────────────────────────────────────────────
+# Copy requirements first for layer caching
+COPY requirements.txt .
+RUN pip install --no-cache-dir --upgrade pip \
+    && pip install --no-cache-dir -r requirements.txt
+
+# ── Copy application source ───────────────────────────────────────────────────
+COPY ip_sakti/ ./ip_sakti/
+COPY config/   ./config/
+
+# ── Runtime directories (volumes mounted via docker-compose) ──────────────────
+RUN mkdir -p /app/indexes /app/db /app/data /app/logs \
+    && chown -R ${APP_USER}:${APP_USER} /app
+
+USER ${APP_USER}
+
+# ── Health check ──────────────────────────────────────────────────────────────
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+    CMD python -c "import httpx; httpx.get('http://localhost:8000/health').raise_for_status()" \
+    || exit 1
+
+# ── Entrypoint ────────────────────────────────────────────────────────────────
+# Stage 6 will add ip_sakti/api/main.py; the CMD below will work once it exists.
+EXPOSE 8000
+CMD ["uvicorn", "ip_sakti.api.main:app", "--host", "0.0.0.0", "--port", "8000"]

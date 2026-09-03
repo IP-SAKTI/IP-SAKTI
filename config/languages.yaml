@@ -1,0 +1,72 @@
+# =============================================================================
+# IP-SAKTI Sahayak — Supported Languages
+# Used by the multilingual layer (Stage 2) for detection and translation routing.
+# ISO 639-1 codes are used as primary identifiers.
+# =============================================================================
+
+supported_languages:
+  # Indian languages
+  - code: "hi"
+    name: "Hindi"
+    script: "Devanagari"
+    region: "India"
+  - code: "sa"
+    name: "Sanskrit"
+    script: "Devanagari"
+    region: "India"
+  - code: "bn"
+    name: "Bengali"
+    script: "Bengali"
+    region: "India"
+  - code: "ta"
+    name: "Tamil"
+    script: "Tamil"
+    region: "India"
+  - code: "te"
+    name: "Telugu"
+    script: "Telugu"
+    region: "India"
+  - code: "kn"
+    name: "Kannada"
+    script: "Kannada"
+    region: "India"
+  - code: "ml"
+    name: "Malayalam"
+    script: "Malayalam"
+    region: "India"
+  - code: "mr"
+    name: "Marathi"
+    script: "Devanagari"
+    region: "India"
+  - code: "gu"
+    name: "Gujarati"
+    script: "Gujarati"
+    region: "India"
+  - code: "pa"
+    name: "Punjabi"
+    script: "Gurmukhi"
+    region: "India"
+  - code: "or"
+    name: "Odia"
+    script: "Odia"
+    region: "India"
+  - code: "as"
+    name: "Assamese"
+    script: "Bengali"
+    region: "India"
+  - code: "ur"
+    name: "Urdu"
+    script: "Nastaliq"
+    region: "India"
+
+  # International
+  - code: "en"
+    name: "English"
+    script: "Latin"
+    region: "International"
+
+# Language used internally for retrieval and LLM generation
+retrieval_language: "en"
+
+# Fallback language when detection confidence is below threshold
+fallback_language: "en"

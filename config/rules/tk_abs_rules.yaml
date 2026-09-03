@@ -1,0 +1,35 @@
+# =============================================================================
+# IP-SAKTI Sahayak — TK/ABS Agent Rules
+# Loaded by the Rule Engine (Stage 4).
+#
+# Schema per rule:
+#   id:          unique rule identifier (string)
+#   description: human-readable explanation
+#   conditions:  list of key-value pairs that must all match the QueryContext
+#                  - intent: tk_abs
+#                  - jurisdiction: india | international | both
+#   actions:     list of directives emitted when all conditions are met
+#                  - route_to_agent: <agent_id>
+#                  - set_flag: <flag_name>
+#                  - add_filter: <filter_name>
+#
+# NOTE ON TKDL:
+#   TKDL material may only be referenced where access and usage permissions
+#   explicitly allow it.  Do NOT add rules that route to TKDL unless
+#   confirmed with the project lead.
+# =============================================================================
+
+rules: []
+
+# Example (uncomment and expand in Stage 4):
+# rules:
+#   - id: tk_abs_biodiversity_international
+#     description: >
+#       Route ABS queries with international jurisdiction to the TK/ABS Agent
+#       with the Nagoya Protocol filter.
+#     conditions:
+#       - intent: tk_abs
+#       - jurisdiction: international
+#     actions:
+#       - route_to_agent: tk_abs_agent
+#       - add_filter: nagoya_protocol
