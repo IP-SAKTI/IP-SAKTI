@@ -4,7 +4,7 @@ IP-SAKTI Sahayak
 
 Multilingual AI Assistant for Intellectual Property and Regulatory Guidance in Ayurveda
 
-Overview
+## Overview
 
 IP-SAKTI Sahayak is a multilingual, RAG-based AI assistant designed
 to help users navigate Ayurvedic Traditional Knowledge, Intellectual
@@ -15,7 +15,7 @@ specialist agents, rule-based processing, and a pretrained
 instruction-tuned LLM to provide source-grounded and
 citation-supported responses.
 
-Key Capabilities
+## Key Capabilities
 
 Multilingual query support
 
@@ -31,7 +31,7 @@ Hybrid semantic + keyword search
 
 Source citations and evidence validation
 
-Technology Stack
+## Technology Stack
 
 Component Technology
 
@@ -107,7 +107,7 @@ Intent       Jurisdiction   Classification
                  ▼
                 User
 
-Knowledge Sources
+## Knowledge Sources
 
 The knowledge base is built from authorized and authoritative
 sources, including:
@@ -132,7 +132,7 @@ GBIF
 
 Other permitted/licensed datasets
 
-Project Status
+## Project Status
 
 Smart India Hackathon 2026 --- Problem Statement 26045
 
