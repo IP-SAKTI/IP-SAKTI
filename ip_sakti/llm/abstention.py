@@ -8,6 +8,7 @@ or evidence is insufficient, the system must decline to answer and escalate to t
 from __future__ import annotations
 
 import logging
+from datetime import datetime, timezone
 from typing import Optional
 from uuid import UUID
 
@@ -61,11 +62,22 @@ class SafeAbstentionHandler:
         )
 
         try:
-            self._db.insert_escalation(
-                query_id=str(record.query_id),
-                reason=record.reason,
-                agent_type=record.agent_type.value if record.agent_type else None,
-            )
+            conn = self._db.connection
+            now_iso = datetime.now(timezone.utc).isoformat()
+            with conn:
+                conn.execute(
+                    """
+                    INSERT INTO escalations (
+                        query_id, agent_type, reason, escalated_at
+                    ) VALUES (?, ?, ?, ?)
+                    """,
+                    (
+                        str(record.query_id),
+                        record.agent_type.value if record.agent_type else None,
+                        record.reason,
+                        now_iso,
+                    ),
+                )
             logger.info(
                 "Logged escalation record to database",
                 extra={"query_id": str(query_id), "reason": reason},

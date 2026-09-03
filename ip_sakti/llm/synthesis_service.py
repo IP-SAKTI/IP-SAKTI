@@ -120,7 +120,7 @@ class AnswerSynthesisService:
                 agent_type=agent_type,
             )
 
-        agents_used = [agent_type] if agent_type else []
+        agents_invoked = [agent_type] if agent_type else []
 
         return FinalResponse(
             query_id=context.query_id,
@@ -129,5 +129,5 @@ class AnswerSynthesisService:
             confidence=confidence_res,
             evidence=list(evidence),
             citations=citations,
-            agents_used=agents_used,
+            agents_invoked=agents_invoked,
         )
