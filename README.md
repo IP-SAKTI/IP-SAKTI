@@ -33,24 +33,74 @@ Source citations and evidence validation
 
 ## Technology Stack
 
-Component Technology
+### Frontend
 
-Frontend / UI Streamlit
-Backend / API FastAPI
-Language Detection Pretrained NLP Model
-Translation Pretrained / Translation API
-LLM Pluggable Pretrained Instruction-Tuned Model
-Agent Orchestration Python
-Embeddings Multilingual Embedding Model
-Vector Search FAISS
-Keyword Search BM25
-Search Fusion Reciprocal Rank Fusion (RRF)
-Reranking Cross-Encoder
-Rule Engine Python + YAML
-Metadata Storage SQLite
-Validation Pydantic + Citation Validation
-Logging Python Structured Logging
-Deployment Docker
+- **Streamlit** — User interface and interactive dashboard
+
+### Backend
+
+- **FastAPI** — REST API and backend services
+- **Pydantic** — Request/response validation and structured data models
+
+### Language Processing
+
+- **Pretrained NLP Models** — Language detection and query understanding
+- **Multilingual Translation Model / API** — Query and response translation
+
+### AI & LLM
+
+- **Pretrained Instruction-Tuned LLM** — Evidence-based answer generation
+- **Multilingual Embedding Model** — Semantic representation of queries and documents
+- **Cross-Encoder** — Evidence reranking
+
+### Agent & Orchestration
+
+- **Python** — Core orchestration and agent workflows
+- **IP Agent** — Intellectual property and patent-related queries
+- **Regulatory Agent** — Regulatory and jurisdiction-specific queries
+- **TK/ABS Agent** — Traditional Knowledge and Access & Benefit Sharing queries
+
+### Information Retrieval
+
+- **FAISS** — Dense vector similarity search
+- **BM25** — Keyword-based retrieval
+- **RRF (Reciprocal Rank Fusion)** — Combines dense and keyword search results
+- **Cross-Encoder Reranker** — Ranks retrieved evidence by relevance
+
+### Rule Engine
+
+- **Python** — Regulatory rule processing
+- **YAML** — Jurisdiction-specific rules and configurations
+
+### Data & Storage
+
+- **SQLite** — Metadata and application data
+- **JSON** — Structured configuration and knowledge metadata
+- **FAISS Index** — Vector embeddings
+- **BM25 Index** — Keyword search index
+
+### Knowledge Sources
+
+- **TKDL / CSIR-TKDL** — Traditional Knowledge
+- **Ministry of AYUSH** — Ayurveda and AYUSH resources
+- **CCRAS** — Ayurvedic research and medicinal plant information
+- **AYUSH Research Portal** — Research literature
+- **IP India** — Indian patent information
+- **WIPO** — International IP and patent information
+- **India Code** — Indian laws and regulations
+- **PubMed / NCBI** — Scientific literature
+- **GBIF** — Biodiversity and taxonomic information
+
+### Validation & Observability
+
+- **Pydantic** — Schema validation
+- **Citation Validation** — Evidence-to-claim verification
+- **Python Structured Logging** — Application logging and monitoring
+
+### Deployment
+
+- **Docker** — Containerization and deployment
+- **Docker Compose** — Local multi-service orchestration
 
 ## Architecture
 
