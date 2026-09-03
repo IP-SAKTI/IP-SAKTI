@@ -7,7 +7,7 @@ Streamlit UI → FastAPI → Orchestrator → Agents → RAG → LLM → Respons
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from enum import Enum
 from typing import Any, Optional
 from uuid import UUID, uuid4
@@ -174,6 +174,26 @@ class EvidenceChunk(BaseModel):
     source_url: Optional[str] = Field(
         default=None,
         description="URL of the source document.",
+    )
+    title: Optional[str] = Field(
+        default=None,
+        description="Title or heading of the document or chunk.",
+    )
+    authority: Optional[str] = Field(
+        default=None,
+        description="Issuing authority or organisation name.",
+    )
+    publication_date: Optional[date] = Field(
+        default=None,
+        description="Publication date of the source document.",
+    )
+    document_type: Optional[str] = Field(
+        default=None,
+        description="Type of document, e.g. 'act', 'guideline', 'patent'.",
+    )
+    jurisdiction: Optional[str] = Field(
+        default=None,
+        description="Applicable jurisdiction.",
     )
     faiss_score: Optional[float] = Field(
         default=None,
