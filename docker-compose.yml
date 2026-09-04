@@ -31,7 +31,7 @@ services:
     env_file:
       - .env
     environment:
-      # These can be overridden in .env
+      # Container-internal environment settings (fixed inside Docker network)
       - API_HOST=0.0.0.0
       - API_PORT=8000
       - LOG_FORMAT=json

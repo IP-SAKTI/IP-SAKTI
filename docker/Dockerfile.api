@@ -43,6 +43,6 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
     || exit 1
 
 # ── Entrypoint ────────────────────────────────────────────────────────────────
-# Stage 6 will add ip_sakti/api/main.py; the CMD below will work once it exists.
+# FastAPI application entrypoint
 EXPOSE 8000
 CMD ["uvicorn", "ip_sakti.api.main:app", "--host", "0.0.0.0", "--port", "8000"]

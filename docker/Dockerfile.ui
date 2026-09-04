@@ -35,7 +35,7 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
     CMD curl -f http://localhost:8501/_stcore/health || exit 1
 
 # ── Entrypoint ────────────────────────────────────────────────────────────────
-# Stage 6 will add ip_sakti/ui/app.py; the CMD below will work once it exists.
+# Streamlit application entrypoint
 EXPOSE 8501
 CMD ["streamlit", "run", "ip_sakti/ui/app.py", \
      "--server.port=8501", \

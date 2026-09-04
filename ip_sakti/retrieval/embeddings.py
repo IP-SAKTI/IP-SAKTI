@@ -82,8 +82,7 @@ class EmbeddingGenerator:
             Empty array of shape (0, dim) if texts is empty.
         """
         if not texts:
-            # Return empty array with dimension 0 or model dimension if loaded
-            dim = self.dimension if self._model is not None else 384
+            dim = self.dimension if self._model is not None else 0
             return np.empty((0, dim), dtype=np.float32)
 
         clean_texts = [t.strip() for t in texts]
@@ -128,4 +127,8 @@ class EmbeddingGenerator:
         """Return the vector embedding dimension of the loaded model."""
         model = self._get_model()
         dim = model.get_sentence_embedding_dimension()
-        return int(dim) if dim is not None else 384
+        if dim is None:
+            raise RetrievalError(
+                f"Embedding model {self.model_name!r} did not return a valid dimension."
+            )
+        return int(dim)
