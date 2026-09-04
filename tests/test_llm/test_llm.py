@@ -104,6 +104,13 @@ class TestSafeAbstentionHandler:
         assert resp.query_id == qid
         assert resp.disclaimer != ""
 
+        # Verify entry was written to DB escalations table
+        conn = db.connection
+        row = conn.execute("SELECT * FROM escalations WHERE query_id = ?", (str(qid),)).fetchone()
+        assert row is not None
+        assert row["reason"] == "Insufficient evidence"
+        assert row["agent_type"] == AgentType.IP_AGENT.value
+
 
 class TestAnswerSynthesisService:
     def test_synthesize_high_confidence(self, sample_context: QueryContext, sample_evidence: list[EvidenceChunk]) -> None:

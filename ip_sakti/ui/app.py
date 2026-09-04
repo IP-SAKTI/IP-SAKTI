@@ -166,6 +166,10 @@ def render_response(res: Dict[str, Any]) -> None:
     # 2. Main Response Area
     if is_abstention:
         st.warning(f"### 🛡️ Safe Abstention & Facilitator Escalation\n\n{answer}")
+        st.info(
+            "ℹ️ **Human/IP Facilitator Pathway**: This query has been logged to the escalation queue. "
+            "Our legal/regulatory domain experts will review the query context and evidence base."
+        )
     else:
         st.markdown(f"### 📄 Response\n\n{answer}")
 

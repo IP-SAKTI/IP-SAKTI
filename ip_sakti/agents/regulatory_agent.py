@@ -52,6 +52,10 @@ class RegulatoryAgent(BaseAgent):
         )
 
         search_query = context.translated_query
+        reg_keywords = ["drug", "licence", "license", "ayush", "rule 158", "gmp", "pharmacopoeia", "cosmetic", "nutraceutical"]
+        if search_query and not any(kw in search_query.lower() for kw in reg_keywords):
+            search_query = f"{search_query} AYUSH licensing Rule 158B Drugs and Cosmetics Act"
+
         evidence_chunks = pipeline.search(search_query)
 
         summary = (

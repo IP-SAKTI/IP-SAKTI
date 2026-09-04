@@ -54,3 +54,25 @@ class TestAPIEndpoints:
         }
         response = client.post("/query", json=payload)
         assert response.status_code == 422
+
+    def test_query_endpoint_hindi_query(self) -> None:
+        payload = {
+            "raw_query": "आयुर्वेदिक पेटेंट नियम क्या हैं?",
+            "jurisdiction": "india",
+            "user_language": "hi",
+        }
+        response = client.post("/query", json=payload)
+        assert response.status_code == 200
+        data = response.json()
+        assert "query_id" in data
+        assert "answer" in data
+
+    def test_query_endpoint_invalid_jurisdiction_fallback(self) -> None:
+        payload = {
+            "raw_query": "What are the rules?",
+            "jurisdiction": "invalid_jurisdiction_name",
+        }
+        response = client.post("/query", json=payload)
+        assert response.status_code == 200
+        data = response.json()
+        assert "query_id" in data

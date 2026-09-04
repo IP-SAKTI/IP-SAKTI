@@ -71,3 +71,34 @@ class TestAgents:
         res = agent.process(sample_context, mock_pipeline)
         assert isinstance(res, AgentResult)
         assert res.agent_type == AgentType.TK_ABS_AGENT
+
+    def test_agent_query_enrichment(self, mock_pipeline: MagicMock) -> None:
+        generic_context = QueryContext(
+            query_id=uuid4(),
+            raw_query="neem formulation",
+            normalised_query="neem formulation",
+            detected_language="en",
+            lang_detect_confidence=1.0,
+            translated_query="neem formulation",
+            intent=Intent.AMBIGUOUS,
+            jurisdiction=Jurisdiction.INDIA,
+            formulation_category=FormulationCategory.CLASSICAL,
+        )
+
+        # IPAgent enriches generic query
+        ip_agent = IPAgent()
+        ip_agent.process(generic_context, mock_pipeline)
+        called_query = mock_pipeline.search.call_args[0][0]
+        assert "patentability" in called_query
+
+        # RegulatoryAgent enriches generic query
+        reg_agent = RegulatoryAgent()
+        reg_agent.process(generic_context, mock_pipeline)
+        called_query = mock_pipeline.search.call_args[0][0]
+        assert "Rule 158B" in called_query
+
+        # TKABSAgent enriches generic query
+        tk_agent = TKABSAgent()
+        tk_agent.process(generic_context, mock_pipeline)
+        called_query = mock_pipeline.search.call_args[0][0]
+        assert "Traditional Knowledge" in called_query

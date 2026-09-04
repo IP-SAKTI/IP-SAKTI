@@ -67,6 +67,14 @@ class SafeAbstentionHandler:
             with conn:
                 conn.execute(
                     """
+                    INSERT OR IGNORE INTO queries (
+                        query_id, raw_query, is_abstention, created_at
+                    ) VALUES (?, 'Escalated query', 1, ?)
+                    """,
+                    (str(record.query_id), now_iso),
+                )
+                conn.execute(
+                    """
                     INSERT INTO escalations (
                         query_id, agent_type, reason, escalated_at
                     ) VALUES (?, ?, ?, ?)
