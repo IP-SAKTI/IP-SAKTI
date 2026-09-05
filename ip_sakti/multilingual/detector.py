@@ -116,14 +116,18 @@ class LanguageDetector:
         detected_lang: str = top.lang
         confidence: float = float(top.prob)
 
-        if confidence < self._min_confidence:
+        if (
+            confidence < self._min_confidence
+            or not self._registry.is_supported(detected_lang)
+        ):
             fallback = self._registry.fallback_language
             logger.info(
-                "Detection confidence below threshold; using fallback",
+                "Detection confidence below threshold or language unsupported; using fallback",
                 extra={
                     "detected": detected_lang,
                     "confidence": confidence,
                     "threshold": self._min_confidence,
+                    "is_supported": self._registry.is_supported(detected_lang),
                     "fallback": fallback,
                 },
             )

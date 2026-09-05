@@ -133,6 +133,20 @@ class MultilingualService:
             )
         else:
             detection = self._detector.detect(request.raw_query)
+            if not self._registry.is_supported(detection.language):
+                fallback = self._registry.fallback_language
+                logger.info(
+                    "Auto-detected language %r unsupported by registry; using fallback %r",
+                    detection.language,
+                    fallback,
+                )
+                from ip_sakti.models.multilingual import DetectionResult
+
+                detection = DetectionResult(
+                    language=fallback,
+                    confidence=detection.confidence,
+                    is_fallback=True,
+                )
 
         effective_language = detection.language
 
@@ -140,10 +154,24 @@ class MultilingualService:
         normalisation = self._normalizer.normalise(request.raw_query)
 
         # ── Step 3: Query translation ─────────────────────────────────────────
-        query_translation = self._translator.translate_to_retrieval_language(
-            text=normalisation.normalised,
-            source_language=effective_language,
-        )
+        try:
+            query_translation = self._translator.translate_to_retrieval_language(
+                text=normalisation.normalised,
+                source_language=effective_language,
+            )
+        except Exception as exc:
+            logger.warning(
+                "Query translation failed, falling back to original query text",
+                extra={"error": str(exc), "effective_language": effective_language},
+            )
+            from ip_sakti.models.multilingual import TranslationResult
+            query_translation = TranslationResult(
+                source_language=effective_language,
+                target_language=self._registry.retrieval_language,
+                original_text=normalisation.normalised,
+                translated_text=normalisation.normalised,
+                was_translated=False,
+            )
 
         context = MultilingualContext(
             query_id=request.query_id,

@@ -66,7 +66,15 @@ class PipelineCoordinator:
         self.orchestrator = orchestrator or Orchestrator()
         self.rule_engine = rule_engine or RuleEngine()
         self.agent_router = agent_router or AgentRouter()
-        self.rag_pipeline = rag_pipeline or HybridRAGPipeline()
+        if rag_pipeline is not None:
+            self.rag_pipeline = rag_pipeline
+        else:
+            self.rag_pipeline = HybridRAGPipeline()
+            if not self.rag_pipeline.is_built:
+                try:
+                    self.rag_pipeline.load_index()
+                except Exception:
+                    logger.debug("No pre-built RAG index loaded on startup.")
         self.synthesis_service = synthesis_service or AnswerSynthesisService()
 
         # Specialist agents mapping

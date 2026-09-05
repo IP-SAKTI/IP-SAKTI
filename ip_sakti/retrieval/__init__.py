@@ -33,7 +33,10 @@ from ip_sakti.retrieval.fusion import FusedCandidate, ReciprocalRankFusion
 from ip_sakti.retrieval.pipeline import HybridRAGPipeline
 from ip_sakti.retrieval.reranker import CrossEncoderReranker
 
+from ip_sakti.retrieval.sources import AuthorisedSource, SourceRegistry
+
 __all__ = [
+    "AuthorisedSource",
     "BM25SparseStore",
     "CorruptIndexError",
     "CrossEncoderReranker",
@@ -46,4 +49,5 @@ __all__ = [
     "IndexNotFoundError",
     "ReciprocalRankFusion",
     "RetrievalError",
+    "SourceRegistry",
 ]

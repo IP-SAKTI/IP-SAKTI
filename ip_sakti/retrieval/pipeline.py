@@ -206,12 +206,8 @@ class HybridRAGPipeline:
             return []
 
         if not self.is_built:
-            # Try auto-loading from index_dir if available on disk
-            try:
-                self.load_index()
-            except Exception:
-                logger.warning("Hybrid RAG pipeline search called but index is not loaded/built.")
-                return []
+            logger.warning("Hybrid RAG pipeline search called but index is not loaded/built.")
+            return []
 
         f_top_k = faiss_top_k if faiss_top_k is not None else self.faiss_top_k
         b_top_k = bm25_top_k if bm25_top_k is not None else self.bm25_top_k
@@ -256,9 +252,15 @@ class HybridRAGPipeline:
                 for cand in fused_candidates[:r_top_k]
             ]
 
-        # 5. Build EvidenceChunk objects preserving provenance
+        # 5. Build EvidenceChunk objects preserving provenance & filtering noise
         evidence_chunks: list[EvidenceChunk] = []
-        for rank, (cand, rerank_score) in enumerate(reranked):
+        for cand, rerank_score in reranked:
+            # Filter noise candidates with zero keyword match and low dense similarity
+            if (cand.bm25_score is None or cand.bm25_score <= 0.0) and (
+                cand.faiss_score is not None and cand.faiss_score < 0.35
+            ):
+                continue
+
             chunk = cand.chunk
             meta = chunk.metadata
 
@@ -266,7 +268,7 @@ class HybridRAGPipeline:
                 chunk_id=chunk.doc_id,
                 doc_id=chunk.parent_doc_id or chunk.doc_id,
                 content=chunk.content,
-                source_label=f"[SOURCE_{rank + 1}]",
+                source_label=f"[SOURCE_{len(evidence_chunks) + 1}]",
                 source_name=meta.source_name,
                 source_url=meta.source_url,
                 title=chunk.title,
@@ -278,7 +280,7 @@ class HybridRAGPipeline:
                 bm25_score=cand.bm25_score,
                 rrf_score=cand.rrf_score,
                 rerank_score=rerank_score,
-                rank=rank,
+                rank=len(evidence_chunks),
             )
             evidence_chunks.append(evidence)
 

@@ -72,12 +72,12 @@ class ConfidenceAssessor:
                 reason="No evidence chunks retrieved.",
             )
 
-        # Average rerank score (normalised to 0..1 if raw logits)
+        # Average rerank score (sigmoid mapped from cross-encoder logits to 0..1)
         rerank_scores = [c.rerank_score for c in evidence if c.rerank_score is not None]
         if rerank_scores:
             raw_avg = sum(rerank_scores) / len(rerank_scores)
-            # Map logit to roughly 0..1
-            avg_rerank = max(0.0, min(1.0, (raw_avg + 5.0) / 10.0))
+            import math
+            avg_rerank = 1.0 / (1.0 + math.exp(-max(-10.0, min(10.0, raw_avg))))
         else:
             avg_rerank = 0.5
 

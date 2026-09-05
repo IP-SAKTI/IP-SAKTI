@@ -147,6 +147,25 @@ class TestLanguageDetectorFallback:
 
         assert 0.0 <= result.confidence <= 1.0
 
+    def test_unsupported_language_triggers_fallback(self) -> None:
+        """When detected language is not in registry (e.g. 'de'), fallback language is returned."""
+        from unittest.mock import MagicMock, patch
+
+        mock_candidate = MagicMock()
+        mock_candidate.lang = "de"
+        mock_candidate.prob = 0.99
+
+        detector = LanguageDetector(min_confidence=0.5)
+        with patch(
+            "ip_sakti.multilingual.detector.detect_langs",
+            return_value=[mock_candidate],
+        ):
+            result = detector.detect("AYUSH licensing steps under Rule 158-B")
+
+        assert result.is_fallback is True
+        assert result.language == "en"
+        assert result.confidence == pytest.approx(0.99)
+
 
 class TestLanguageDetectorErrors:
     def test_empty_string_raises(self, detector: LanguageDetector) -> None:

@@ -166,6 +166,15 @@ class TestServiceUnsupportedLanguage:
         with pytest.raises(UnsupportedLanguageError, match="zz"):
             service.process(request)
 
+    def test_auto_detected_unsupported_language_falls_back_to_en(
+        self, service: MultilingualService
+    ) -> None:
+        """Auto-detected unsupported language (e.g. 'de') falls back to 'en' without raising error."""
+        request = _make_request("AYUSH licensing steps under Rule 158-B", lang=None)
+        context = service.process(request)
+        assert context.effective_language == "en"
+        assert context.detection.is_fallback is True
+
 
 # ---------------------------------------------------------------------------
 # translate_response()
