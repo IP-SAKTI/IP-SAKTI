@@ -119,7 +119,11 @@ class GeminiLLMAdapter:
             f"Retrieved Evidence:\n{formatted_evidence}\n\n"
             f"Instructions: Provide a clear, factual answer to the query citing source labels "
             f"like [SOURCE_1], [SOURCE_2] for every factual statement. Do NOT make claims "
-            f"unsupported by the provided evidence."
+            f"unsupported by the provided evidence. "
+            f"IMPORTANT: Write your complete response in full. "
+            f"Do NOT stop mid-sentence, mid-list, or mid-paragraph. "
+            f"Every sentence, bullet point, and numbered step must be finished completely "
+            f"before ending your response."
         )
 
         if self._configured and _GENAI_AVAILABLE:
@@ -129,7 +133,7 @@ class GeminiLLMAdapter:
                     system_instruction=self.system_prompt,
                 )
                 generation_config = genai.types.GenerationConfig(
-                    max_output_tokens=900,
+                    max_output_tokens=2048,
                     temperature=0.2,
                 )
 

@@ -69,13 +69,33 @@ class CitationValidator:
                     )
                     continue
 
-                # Grounding check: substring or token overlap between sentence and chunk content
+                # Grounding check: token overlap between sentence and chunk content.
+                # Require at least 2 substantive word overlaps for sentences with
+                # more than 4 words; 1 overlap is sufficient for very short sentences.
+                # This prevents a single common word ("the", "a") from counting as
+                # grounded for long fabricated claims.
                 clean_sentence = re.sub(r"\[SOURCE_\d+\]", "", sentence).lower().strip()
                 sentence_words = set(re.findall(r"\w+", clean_sentence))
                 chunk_words = set(re.findall(r"\w+", matching_chunk.content.lower()))
 
-                overlap = len(sentence_words.intersection(chunk_words))
-                is_grounded = overlap > 0 or len(sentence_words) == 0
+                # Exclude very common English stop-words from the overlap count
+                # to avoid false positives (e.g. "the", "is", "in", "of", "a").
+                _STOP_WORDS = {
+                    "the", "a", "an", "is", "are", "was", "were", "be", "been",
+                    "being", "have", "has", "had", "do", "does", "did", "will",
+                    "would", "could", "should", "may", "might", "shall", "can",
+                    "to", "of", "in", "for", "on", "with", "at", "by", "from",
+                    "as", "or", "and", "but", "not", "this", "that", "it",
+                }
+                content_sentence_words = sentence_words - _STOP_WORDS
+                content_chunk_words = chunk_words - _STOP_WORDS
+
+                overlap = len(content_sentence_words.intersection(content_chunk_words))
+
+                # For very short sentences (<=4 words), 1 content overlap is enough.
+                # For longer sentences, require at least 2 overlapping content words.
+                min_overlap = 1 if len(sentence_words) <= 4 else 2
+                is_grounded = overlap >= min_overlap or len(content_sentence_words) == 0
 
                 records.append(
                     CitationRecord(

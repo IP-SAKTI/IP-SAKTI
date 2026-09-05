@@ -1,7 +1,7 @@
 """
 ip_sakti.api.main — FastAPI application server for IP-SAKTI Sahayak.
 
-Provides REST API endpoints for /health and /query.
+Provides REST API endpoints for /health, /query, and /document/{source_id}.
 """
 
 from __future__ import annotations
@@ -12,9 +12,11 @@ from typing import AsyncGenerator
 
 from fastapi import FastAPI, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import RedirectResponse
 
 from ip_sakti.api.schemas import APIQueryRequest, APIQueryResponse, HealthResponse
 from ip_sakti.models.query import FormulationCategory, Jurisdiction, QueryRequest
+from ip_sakti.retrieval.sources import SourceRegistry
 from ip_sakti.service import IPSAKTIService
 
 logger = logging.getLogger(__name__)
@@ -122,3 +124,75 @@ async def process_query(payload: APIQueryRequest) -> APIQueryResponse:
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"An internal error occurred while processing the query: {exc}",
         )
+
+
+# ---------------------------------------------------------------------------
+# Source document redirect endpoint
+# ---------------------------------------------------------------------------
+
+# Singleton SourceRegistry loaded once and reused across requests.
+_source_registry = None
+
+
+def get_source_registry():
+    """Return the cached SourceRegistry singleton."""
+    global _source_registry
+    if _source_registry is None:
+        _source_registry = SourceRegistry()
+    return _source_registry
+
+
+@app.get(
+    "/document/{source_id}",
+    tags=["Documents"],
+    summary="Redirect to the canonical source document URL.",
+    responses={
+        302: {"description": "Redirect to canonical source URL."},
+        404: {"description": "Unknown source identifier."},
+    },
+)
+async def get_source_document(source_id: str) -> RedirectResponse:
+    """
+    Return an HTTP 302 redirect to the canonical URL of the source document
+    identified by *source_id*.
+
+    Only source IDs registered in config/sources.json are accepted.
+    This endpoint cannot be used to access arbitrary filesystem paths
+    or perform path traversal.
+
+    Parameters
+    ----------
+    source_id :
+        The source registry identifier (e.g. 'ayush_rule_158b').
+
+    Returns
+    -------
+    RedirectResponse
+        302 redirect to the canonical source URL.
+
+    Raises
+    ------
+    HTTPException 404
+        If the source_id is not found in the registry.
+    """
+    registry = get_source_registry()
+    source_meta = registry.get_source(source_id)
+
+    if source_meta is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Source document '{source_id}' not found in the knowledge registry.",
+        )
+
+    canonical_url = source_meta.url
+    if not canonical_url:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"No URL available for source '{source_id}'.",
+        )
+
+    logger.info(
+        "Redirecting to source document",
+        extra={"source_id": source_id, "url": canonical_url},
+    )
+    return RedirectResponse(url=canonical_url, status_code=302)

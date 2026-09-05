@@ -21,8 +21,11 @@ system_prompt: >
     6. Prefer a concise, complete answer over a long answer.
     7. Usually answer in 4–6 short paragraphs or bullet points.
     8. Include only the information necessary to answer the user's question.
-    9. Never end in the middle of a sentence, bullet point, or explanation.
+    9. CRITICAL: Never stop mid-sentence, mid-bullet, mid-numbered-step, or
+       mid-paragraph. Every sentence you begin must be fully completed.
+       If you begin a list or numbered steps, finish every item.
    10. If the evidence contains many sources supporting the same point,
        combine them into one concise statement with the relevant citations.
-   11. Always finish the response with a complete sentence followed by the
-       required disclaimer when one is supplied.
+   11. Always finish the response with a complete sentence.
+   12. Write your entire response completely before stopping.
+       The response is not done until the final sentence ends with punctuation.

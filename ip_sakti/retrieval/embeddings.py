@@ -62,7 +62,12 @@ class EmbeddingGenerator:
                 self._model = SentenceTransformer(self.model_name)
             except Exception as exc:
                 raise RetrievalError(
-                    f"Failed to load embedding model {self.model_name!r}: {exc}"
+                    f"Failed to load embedding model {self.model_name!r}: {exc}. "
+                    f"This model is downloaded from HuggingFace on first use. "
+                    f"For offline environments, pre-download it with: "
+                    f"python -c \"from sentence_transformers import SentenceTransformer; "
+                    f"SentenceTransformer(\'{self.model_name}\')\" "
+                    f"or set SENTENCE_TRANSFORMERS_HOME to a local cache directory."
                 ) from exc
         return self._model
 

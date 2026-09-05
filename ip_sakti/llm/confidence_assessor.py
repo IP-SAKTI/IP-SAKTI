@@ -133,10 +133,16 @@ class ConfidenceAssessor:
             citation_coverage = grounded_count / len(citations)
 
         else:
+            # No [SOURCE_X] citations were found in the answer.
+            # An uncited answer should NOT receive full citation coverage.
+            # Use a mild penalty (0.6) to avoid artificially inflating
+            # confidence for answers that do not cite evidence inline.
+            # 0.6 is neutral — it does not automatically trigger abstention
+            # but prevents the score from being boosted to 1.0.
             citation_coverage = (
-                1.0
+                0.6
                 if evidence_count >= self.min_evidence_chunks
-                else 0.5
+                else 0.3
             )
 
         # ------------------------------------------------------------------

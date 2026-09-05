@@ -920,7 +920,14 @@ def render_response(res: Dict[str, Any]) -> None:
                     "",
                 )
 
-                url = chunk.get("source_url")
+                # Prefer /document/{source_id} API redirect (allowlist-controlled).
+                # Falls back to raw source_url if no doc_id is available.
+                source_id_val = chunk.get("doc_id", "")
+                api_url = filters.get("api_url", DEFAULT_API_BASE_URL)
+                if source_id_val:
+                    doc_link = f"{api_url.rstrip('/')}/document/{source_id_val}"
+                else:
+                    doc_link = chunk.get("source_url")
 
                 st.markdown(
                     f"""
@@ -939,9 +946,9 @@ def render_response(res: Dict[str, Any]) -> None:
                     unsafe_allow_html=True,
                 )
 
-                if url:
+                if doc_link:
                     st.markdown(
-                        f"[View source document]({url})"
+                        f"[View source document]({doc_link})"
                     )
 
     # ---------------------------------------------------------------

@@ -204,6 +204,11 @@ class MultilingualService:
         This is called after LLM answer generation (Stage 5).  It returns an
         updated ``MultilingualContext`` with ``response_translation`` populated.
 
+        If translation fails for any reason (network error, API limit, etc.),
+        the method falls back to the original English response with
+        ``was_translated=False``.  Citations are always preserved because the
+        original text is returned intact.
+
         Parameters
         ----------
         response_text :
@@ -215,16 +220,44 @@ class MultilingualService:
         -------
         MultilingualContext
             A new instance with ``response_translation`` set.
-
-        Raises
-        ------
-        TranslationError
-            If translation back to the user's language fails.
         """
-        response_translation = self._translator.translate_response(
-            text=response_text,
-            target_language=context.effective_language,
-        )
+        try:
+            response_translation = self._translator.translate_response(
+                text=response_text,
+                target_language=context.effective_language,
+            )
+        except (TranslationError, UnsupportedLanguageError) as exc:
+            logger.warning(
+                "Response translation failed; returning original English answer",
+                extra={
+                    "target_language": context.effective_language,
+                    "error": str(exc),
+                },
+            )
+            from ip_sakti.models.multilingual import TranslationResult
+            response_translation = TranslationResult(
+                source_language=self._registry.retrieval_language,
+                target_language=context.effective_language,
+                original_text=response_text,
+                translated_text=response_text,
+                was_translated=False,
+            )
+        except Exception as exc:
+            logger.error(
+                "Unexpected error during response translation; returning original English answer",
+                extra={
+                    "target_language": context.effective_language,
+                    "error": str(exc),
+                },
+            )
+            from ip_sakti.models.multilingual import TranslationResult
+            response_translation = TranslationResult(
+                source_language=self._registry.retrieval_language,
+                target_language=context.effective_language,
+                original_text=response_text,
+                translated_text=response_text,
+                was_translated=False,
+            )
 
         logger.debug(
             "Response translated",
