@@ -1,5 +1,5 @@
-"""
-scripts/ingest_kb.py — Knowledge Base Ingestion & Dual RAG Index Builder.
+﻿"""
+scripts/ingest_kb.py â€” Knowledge Base Ingestion & Dual RAG Index Builder.
 
 Ingests authoritative legal and regulatory documents from data/knowledge/,
 validates provenance against SourceRegistry, chunks text, generates embeddings,
@@ -74,7 +74,7 @@ def run_ingestion(
 
     for file_path in doc_files:
         try:
-            with file_path.open("r", encoding="utf-8") as fh:
+            with file_path.open("r", encoding="utf-8-sig") as fh:
                 raw = json.load(fh)
             doc = KnowledgeDocument.model_validate(raw)
 

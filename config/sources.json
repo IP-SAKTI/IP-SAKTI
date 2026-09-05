@@ -118,5 +118,20 @@
     "authority_level": "institutional",
     "topic": "regulatory",
     "checksum": "sha256-api-ccras-v1"
+  },
+  {
+    "source_id": "cdsco_drugs_rules_1945",
+    "title": "Drugs Rules, 1945",
+    "organisation": "Central Drugs Standard Control Organization",
+    "source_type": "rule",
+    "jurisdiction": "india",
+    "url": "https://cdsco.gov.in/opencms/opencms/en/Acts-and-rules/Drugs-Rules/",
+    "document_title": "Drugs Rules, 1945",
+    "publication_date": "2024-07-01",
+    "effective_date": null,
+    "language": "en",
+    "authority_level": "statutory",
+    "topic": "regulatory",
+    "checksum": "sha256-cdsco-drugs-rules-2024-v1"
   }
 ]

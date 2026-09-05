@@ -27,9 +27,15 @@ _IP_KEYWORDS = {
 }
 
 _REGULATORY_KEYWORDS = {
-    "drug", "drugs", "licence", "license", "licensing", "drugs and cosmetics",
-    "rule 158", "rule 158b", "rule 158-b", "ayush", "first schedule", "pharmacopoeia",
-    "gmp", "good manufacturing", "clinical trial", "safety", "efficacy", "labeling",
+    "drug", "drugs", "medicine", "medicines",
+    "licence", "license", "licensing",
+    "manufacturing", "manufacturing license", "manufacturing licence",
+    "drugs and cosmetics", "drugs and cosmetics rules",
+    "rule 158", "rule 158b", "rule 158-b",
+    "ayush", "ayurveda", "ayurvedic", "ayurvedic medicine",
+    "first schedule", "pharmacopoeia",
+    "gmp", "good manufacturing",
+    "clinical trial", "safety", "efficacy", "labeling",
     "cosmetic", "nutraceutical", "phytopharmaceutical", "ayurveda-aahar",
 }
 

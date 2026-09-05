@@ -24,6 +24,12 @@ class TestQueryClassifier:
     def test_classify_regulatory_intent(self, classifier: QueryClassifier) -> None:
         assert classifier.classify_intent("Ayurvedic drug licensing requirements under Rule 158-B") == Intent.REGULATORY
 
+    def test_classify_ayurvedic_manufacturing_as_regulatory(
+        self, classifier: QueryClassifier
+    )-> None:
+        query = "What are the requirements for manufacturing an Ayurvedic medicine in India?"
+        assert classifier.classify_intent(query) == Intent.REGULATORY
+
     def test_classify_tk_abs_intent(self, classifier: QueryClassifier) -> None:
         assert classifier.classify_intent("National Biodiversity Authority ABS approval for traditional knowledge") == Intent.TK_ABS
 

@@ -128,7 +128,15 @@ class GeminiLLMAdapter:
                     model_name=self.model_name,
                     system_instruction=self.system_prompt,
                 )
-                response = model.generate_content(user_prompt)
+                generation_config = genai.types.GenerationConfig(
+                    max_output_tokens=900,
+                    temperature=0.2,
+                )
+
+                response = model.generate_content(
+                    user_prompt,
+                    generation_config=generation_config,
+)
                 if response and response.text:
                     return response.text.strip()
             except Exception as exc:
