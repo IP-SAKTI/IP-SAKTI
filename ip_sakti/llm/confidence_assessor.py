@@ -50,12 +50,14 @@ class ConfidenceAssessor:
 
         # Hard safety threshold for retrieval relevance.
         #
-        # If the retrieved evidence has an extremely low rerank score,
-        # the evidence is probably unrelated to the user's question.
+        # If the retrieved evidence has an insufficient cross-encoder rerank score
+        # (sigmoid < 0.60, corresponding to raw logit < ~0.4), the evidence is
+        # not sufficiently relevant to answer the user's question.
         #
         # In that situation the system must abstain even if the LLM
         # successfully cites the irrelevant evidence.
-        self.retrieval_safety_threshold = 0.10
+        self.retrieval_safety_threshold = 0.60
+
 
     def assess_confidence(
         self,

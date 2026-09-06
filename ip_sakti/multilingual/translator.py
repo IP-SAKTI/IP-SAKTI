@@ -308,12 +308,18 @@ class QueryTranslator:
         """
 
         try:
-            translator = GoogleTranslator(
-                source=source,
-                target=target,
-            )
-
-            result = translator.translate(text)
+            try:
+                translator = GoogleTranslator(
+                    source=source,
+                    target=target,
+                )
+                result = translator.translate(text)
+            except Exception:
+                translator = GoogleTranslator(
+                    source="auto",
+                    target=target,
+                )
+                result = translator.translate(text)
 
             if result is None:
                 raise TranslationError(
@@ -331,13 +337,7 @@ class QueryTranslator:
 
             return translated_text
 
-        except (
-            LanguageNotSupportedException,
-            NotValidPayload,
-            RequestError,
-            TranslationNotFound,
-        ) as exc:
-
+        except Exception as exc:
             logger.error(
                 "Google translation failed",
                 extra={
@@ -346,11 +346,10 @@ class QueryTranslator:
                     "error": str(exc),
                 },
             )
-
             raise TranslationError(
-                f"Translation failed "
-                f"({source!r} → {target!r}): {exc}"
+                f"Translation failed ({source!r} → {target!r}): {exc}"
             ) from exc
+
 
         except TranslationError:
             raise

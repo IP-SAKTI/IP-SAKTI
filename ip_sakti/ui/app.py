@@ -11,12 +11,15 @@ orchestration, LLM, or database logic is implemented here.
 from __future__ import annotations
 
 import html
+import logging
 import os
 from pathlib import Path
 from typing import Any, Dict, Optional
 
 import httpx
 import streamlit as st
+
+logger = logging.getLogger(__name__)
 
 
 # ---------------------------------------------------------------------------
@@ -763,8 +766,10 @@ def render_user_message(text: str) -> None:
     )
 
 
-def render_response(res: Dict[str, Any]) -> None:
+def render_response(res: Dict[str, Any], filters: Dict[str, Any] | None = None) -> None:
     """Render an actual backend response."""
+
+    filters_dict = filters or {}
 
     is_abstention = res.get("is_abstention", False)
     answer = res.get("answer", "")
@@ -922,12 +927,22 @@ def render_response(res: Dict[str, Any]) -> None:
 
                 # Prefer /document/{source_id} API redirect (allowlist-controlled).
                 # Falls back to raw source_url if no doc_id is available.
-                source_id_val = chunk.get("doc_id", "")
-                api_url = filters.get("api_url", DEFAULT_API_BASE_URL)
+                source_id_val = chunk.get("source_id") or chunk.get("doc_id", "")
+                api_url = filters_dict.get("api_url", DEFAULT_API_BASE_URL)
                 if source_id_val:
                     doc_link = f"{api_url.rstrip('/')}/document/{source_id_val}"
                 else:
                     doc_link = chunk.get("source_url")
+
+                logger.info(
+                    "Source document link generated",
+                    extra={
+                        "source_id": source_id_val,
+                        "doc_id": chunk.get("doc_id"),
+                        "api_url": api_url,
+                        "document_url": doc_link,
+                    },
+                )
 
                 st.markdown(
                     f"""
@@ -948,7 +963,11 @@ def render_response(res: Dict[str, Any]) -> None:
 
                 if doc_link:
                     st.markdown(
-                        f"[View source document]({doc_link})"
+                        f'<div style="margin-top: 0.25rem; margin-bottom: 1rem;">'
+                        f'<a href="{doc_link}" target="_blank" rel="noopener noreferrer" '
+                        f'style="color: #2563eb; font-weight: 600; text-decoration: underline;">'
+                        f'📄 View Source Document</a></div>',
+                        unsafe_allow_html=True,
                     )
 
     # ---------------------------------------------------------------
@@ -1079,7 +1098,7 @@ def main() -> None:
             if message["role"] == "user":
                 render_user_message(message["content"])
             else:
-                render_response(message["content"])
+                render_response(message["content"], filters)
 
     # -------------------------------------------------------------------
     # Suggested query submitted
@@ -1122,7 +1141,7 @@ def main() -> None:
                         }
                     )
 
-                    render_response(result)
+                    render_response(result, filters)
 
                 except httpx.HTTPStatusError as exc:
 
@@ -1193,7 +1212,8 @@ def main() -> None:
                         }
                     )
 
-                    render_response(result)
+                    render_response(result, filters)
+
 
                 except httpx.HTTPStatusError as exc:
 

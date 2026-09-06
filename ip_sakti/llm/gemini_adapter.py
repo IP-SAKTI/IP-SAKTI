@@ -117,14 +117,13 @@ class GeminiLLMAdapter:
         user_prompt = (
             f"User Query: {context.translated_query}\n\n"
             f"Retrieved Evidence:\n{formatted_evidence}\n\n"
-            f"Instructions: Provide a clear, factual answer to the query citing source labels "
-            f"like [SOURCE_1], [SOURCE_2] for every factual statement. Do NOT make claims "
-            f"unsupported by the provided evidence. "
-            f"IMPORTANT: Write your complete response in full. "
-            f"Do NOT stop mid-sentence, mid-list, or mid-paragraph. "
-            f"Every sentence, bullet point, and numbered step must be finished completely "
-            f"before ending your response."
+            f"Instructions: Provide a complete, structured, and informative answer (approximately 1–3 paragraphs or bullet points) grounded strictly in the evidence above. "
+            f"Give the direct answer first, then elaborate with specific details, forms, conditions, rules, procedures, or exceptions contained in the evidence. "
+            f"Cite source labels like [SOURCE_1], [SOURCE_2] for every factual statement. Do NOT make claims unsupported by the provided evidence. "
+            f"IMPORTANT: Write your complete response in full. Do NOT stop mid-sentence, mid-list, or mid-paragraph. "
+            f"Every sentence, bullet point, and numbered step must be finished completely before ending your response."
         )
+
 
         if self._configured and _GENAI_AVAILABLE:
             try:
@@ -147,9 +146,10 @@ class GeminiLLMAdapter:
                 logger.error(f"Gemini API call failed: {exc}")
 
         # Fallback response generation when API key is unconfigured or in test mode
-        summary_claims = []
+        paragraphs = []
         for idx, chunk in enumerate(evidence, start=1):
             label = chunk.source_label or f"[SOURCE_{idx}]"
-            summary_claims.append(f"Based on {chunk.source_name} {label}: {chunk.content[:150]}...")
+            content = chunk.content.strip()
+            paragraphs.append(f"According to {chunk.source_name} {label}: {content}")
 
-        return " ".join(summary_claims)
+        return "\n\n".join(paragraphs)

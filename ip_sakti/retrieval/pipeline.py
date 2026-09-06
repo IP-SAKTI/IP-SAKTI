@@ -255,11 +255,15 @@ class HybridRAGPipeline:
         # 5. Build EvidenceChunk objects preserving provenance & filtering noise
         evidence_chunks: list[EvidenceChunk] = []
         for cand, rerank_score in reranked:
-            # Filter noise candidates with zero keyword match and low dense similarity
+            # Filter noise candidates: strongly irrelevant cross-encoder scores (< -3.0)
+            # or zero keyword match with low dense similarity (< 0.35)
+            if rerank_score < -3.0:
+                continue
             if (cand.bm25_score is None or cand.bm25_score <= 0.0) and (
                 cand.faiss_score is not None and cand.faiss_score < 0.35
             ):
                 continue
+
 
             chunk = cand.chunk
             meta = chunk.metadata
@@ -267,6 +271,7 @@ class HybridRAGPipeline:
             evidence = EvidenceChunk(
                 chunk_id=chunk.doc_id,
                 doc_id=chunk.parent_doc_id or chunk.doc_id,
+                source_id=meta.source_id,
                 content=chunk.content,
                 source_label=f"[SOURCE_{len(evidence_chunks) + 1}]",
                 source_name=meta.source_name,
@@ -282,6 +287,7 @@ class HybridRAGPipeline:
                 rerank_score=rerank_score,
                 rank=len(evidence_chunks),
             )
+
             evidence_chunks.append(evidence)
 
         logger.info(

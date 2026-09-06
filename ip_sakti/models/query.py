@@ -165,6 +165,10 @@ class EvidenceChunk(BaseModel):
 
     chunk_id: str = Field(..., description="Unique identifier of the document chunk.")
     doc_id: str = Field(..., description="Parent document identifier.")
+    source_id: Optional[str] = Field(
+        default=None,
+        description="Source registry identifier matching config/sources.json.",
+    )
     content: str = Field(..., description="Text of the evidence chunk.")
     source_label: str = Field(
         ...,
@@ -175,6 +179,7 @@ class EvidenceChunk(BaseModel):
         default=None,
         description="URL of the source document.",
     )
+
     title: Optional[str] = Field(
         default=None,
         description="Title or heading of the document or chunk.",
@@ -390,3 +395,20 @@ class FinalResponse(BaseModel):
         default_factory=lambda: datetime.now(timezone.utc),
         description="UTC timestamp when the response was generated.",
     )
+
+
+class SourceViewerResponse(BaseModel):
+    """Response schema for the local Source Document Viewer."""
+
+    source_id: str = Field(..., description="Canonical source ID.")
+    title: str = Field(..., description="Full title of the source document.")
+    organisation: str = Field(..., description="Issuing organisation.")
+    authority: str = Field(..., description="Issuing authority name.")
+    document_type: str = Field(..., description="Type of document.")
+    jurisdiction: str = Field(..., description="Applicable jurisdiction.")
+    official_url: str = Field(..., description="Canonical official URL.")
+    is_authorised_url: bool = Field(default=True, description="Whether the URL is authorised.")
+    content: str = Field(default="", description="Locally available text content.")
+    local_available: bool = Field(default=True, description="Whether local knowledge content is available.")
+    publication_date: Optional[str] = Field(default=None, description="Publication date.")
+

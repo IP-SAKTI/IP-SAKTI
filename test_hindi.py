@@ -1,7 +1,13 @@
-﻿from ip_sakti.pipeline import PipelineCoordinator
+import sys
+
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8")
+
+from ip_sakti.pipeline import PipelineCoordinator
 from ip_sakti.models.query import QueryRequest
 
 query = "आयुर्वेदिक दवाओं को बिक्री के लिए बनाने का लाइसेंस लेने के लिए कौन सा फॉर्म आवश्यक है?"
+
 
 request = QueryRequest(
     raw_query=query,

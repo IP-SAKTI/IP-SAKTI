@@ -65,7 +65,8 @@ safety:
   confidence_threshold: 0.5
 
   # Minimum number of cited evidence chunks required for a confident answer
-  min_evidence_chunks: 2
+  min_evidence_chunks: 1
+
 
 # ── API server ────────────────────────────────────────────────────────────────
 api:
