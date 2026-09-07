@@ -69,7 +69,7 @@ class TestDocumentEndpoint:
         assert data["source_id"] == "ayush_rule_158b"
         assert data["local_available"] is True
         assert "Rule 158-B" in data["content"]
-        assert data["official_url"] == "https://www.ayush.gov.in/docs/asu-l-rules.pdf"
+        assert data["official_url"] == "https://cdsco.gov.in/opencms/opencms/en/Acts-and-rules/Drugs-Rules/"
 
     def test_unknown_source_id_returns_404(self, client: TestClient) -> None:
         """An unregistered source_id must return 404 Not Found."""
@@ -112,6 +112,22 @@ class TestDocumentEndpoint:
             )
             data = resp.json()
             assert data["official_url"].startswith("http")
+
+    def test_archive_url_in_document_endpoint(self, client: TestClient) -> None:
+        """Source with archive_url exposes web.archive.org link in json & html viewer formats."""
+        resp_json = client.get("/document/ip_india_patents_act_3p?format=json")
+        assert resp_json.status_code == 200
+        data = resp_json.json()
+        assert data["archive_url"] is not None
+        assert data["archive_url"].startswith("https://web.archive.org/")
+        assert data["is_valid_archive_url"] is True
+
+        resp_html = client.get("/document/ip_india_patents_act_3p?format=html")
+        assert resp_html.status_code == 200
+        assert "btn-archive" in resp_html.text
+        assert "https://web.archive.org/" in resp_html.text
+        assert "View Archived Source" in resp_html.text
+
 
 
 

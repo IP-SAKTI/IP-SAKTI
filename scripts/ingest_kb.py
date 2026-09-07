@@ -1,4 +1,4 @@
-﻿"""
+"""
 scripts/ingest_kb.py â€” Knowledge Base Ingestion & Dual RAG Index Builder.
 
 Ingests authoritative legal and regulatory documents from data/knowledge/,
@@ -81,10 +81,9 @@ def run_ingestion(
             # Validate source_id against registry
             source_meta = registry.get_source(doc.metadata.source_id)
             if source_meta:
-                # Fill missing metadata from central registry if needed
-                if not doc.metadata.source_url:
-                    doc.metadata.source_url = source_meta.url
-                if not doc.metadata.authority:
+                # Always sync source_url and authority from central registry
+                doc.metadata.source_url = source_meta.url
+                if source_meta.organisation:
                     doc.metadata.authority = source_meta.organisation
 
             documents.append(doc)

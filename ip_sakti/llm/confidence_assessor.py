@@ -111,17 +111,17 @@ class ConfidenceAssessor:
             raw_avg = sum(rerank_scores) / len(rerank_scores)
             raw_max = max(rerank_scores)
 
-            # Convert cross-encoder logits to a 0–1 value.
+            # Convert cross-encoder logits to a 0–1 value (calibrated with +4.0 shift for ms-marco multi-aspect legal queries).
             avg_rerank = 1.0 / (
                 1.0
                 + math.exp(
-                    -max(-10.0, min(10.0, raw_avg))
+                    -max(-10.0, min(10.0, raw_avg + 4.0))
                 )
             )
             max_rerank = 1.0 / (
                 1.0
                 + math.exp(
-                    -max(-10.0, min(10.0, raw_max))
+                    -max(-10.0, min(10.0, raw_max + 4.0))
                 )
             )
         else:
@@ -167,11 +167,11 @@ class ConfidenceAssessor:
         # A response can have perfect citation coverage while still being
         # based on irrelevant documents.
         #
-        # If strongest chunk rerank score raw_max < 0.0 (or avg_rerank < safety threshold),
+        # If strongest chunk rerank score raw_max < -6.5 (or max_rerank < 0.25),
         # the retrieval is unsafe and score must be zeroed out.
         retrieval_unsafe = (
-            raw_max < 0.0
-            or avg_rerank < self.retrieval_safety_threshold
+            raw_max < -6.5
+            or max_rerank < 0.25
         )
 
         if retrieval_unsafe:

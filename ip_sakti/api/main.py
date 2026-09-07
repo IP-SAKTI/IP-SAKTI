@@ -233,10 +233,19 @@ async def get_source_document(
         </div>
         """
 
+    archive_url = viewer_data.get("archive_url")
+    is_valid_archive = viewer_data.get("is_valid_archive_url")
+
     official_link_html = (
         f'<a href="{official_url}" target="_blank" rel="noopener noreferrer" class="btn-official">🌐 Open Official External Source ↗</a>'
         if is_auth_url
         else '<span class="text-unauthorised">⚠️ Official URL is unverified or unauthorised</span>'
+    )
+
+    archive_link_html = (
+        f'<a href="{html.escape(archive_url)}" target="_blank" rel="noopener noreferrer" class="btn-archive">🏛️ View Archived Source (Wayback Machine) ↗</a>'
+        if is_valid_archive and archive_url
+        else ""
     )
 
     html_content = f"""<!DOCTYPE html>
@@ -342,6 +351,14 @@ async def get_source_document(
             justify-content: space-between;
             border-top: 1px solid var(--border);
             padding-top: 1.5rem;
+            flex-wrap: wrap;
+            gap: 1rem;
+        }}
+        .action-buttons {{
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            flex-wrap: wrap;
         }}
         .btn-official {{
             display: inline-flex;
@@ -357,6 +374,21 @@ async def get_source_document(
         }}
         .btn-official:hover {{
             background: var(--primary-hover);
+        }}
+        .btn-archive {{
+            display: inline-flex;
+            align-items: center;
+            padding: 0.75rem 1.25rem;
+            background: #475569;
+            color: #ffffff;
+            text-decoration: none;
+            border-radius: 8px;
+            font-weight: 600;
+            font-size: 0.95rem;
+            transition: background 0.2s ease;
+        }}
+        .btn-archive:hover {{
+            background: #334155;
         }}
         .footnote {{
             font-size: 0.85rem;
@@ -376,7 +408,10 @@ async def get_source_document(
         </div>
         {content_html}
         <div class="actions">
-            <div>{official_link_html}</div>
+            <div class="action-buttons">
+                {official_link_html}
+                {archive_link_html}
+            </div>
             <div class="footnote">Grounded in local knowledge base archive</div>
         </div>
     </div>

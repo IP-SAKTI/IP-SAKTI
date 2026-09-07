@@ -15,7 +15,7 @@ import logging
 from pathlib import Path
 from typing import Optional, Sequence
 
-from pydantic import BaseModel, Field, HttpUrl
+from pydantic import BaseModel, Field, HttpUrl, field_validator
 
 logger = logging.getLogger(__name__)
 
@@ -31,6 +31,8 @@ class AuthorisedSource(BaseModel):
     source_type: str = Field(..., description="Type of document: act, rule, regulation, guideline, database_entry")
     jurisdiction: str = Field(..., description="Applicable jurisdiction: india, international, both")
     url: str = Field(..., description="Authorised government URL")
+    canonical_url: Optional[str] = Field(default=None, description="Canonical official resource page URL")
+    archive_url: Optional[str] = Field(default=None, description="Wayback Machine archived snapshot URL (https://web.archive.org/...)")
     document_title: str = Field(..., description="Canonical title of the specific document or section")
     publication_date: Optional[str] = Field(default=None, description="Publication date (YYYY-MM-DD)")
     effective_date: Optional[str] = Field(default=None, description="Effective date (YYYY-MM-DD)")
@@ -38,6 +40,17 @@ class AuthorisedSource(BaseModel):
     authority_level: str = Field(default="statutory", description="Authority tier: statutory, ministry, institutional, international")
     topic: str = Field(..., description="Domain topic: ip, regulatory, tk_abs")
     checksum: Optional[str] = Field(default=None, description="Version or hash identifier")
+
+    @field_validator("archive_url")
+    @classmethod
+    def validate_archive_url(cls, v: Optional[str]) -> Optional[str]:
+        if not v:
+            return None
+        clean = v.strip()
+        if not clean.startswith("https://web.archive.org/"):
+            raise ValueError("archive_url must begin with 'https://web.archive.org/'")
+        return clean
+
 
 
 _ALIAS_MAP: dict[str, str] = {
@@ -217,6 +230,9 @@ class SourceRegistry:
             if meta.get("document_type"):
                 document_type = meta.get("document_type")
 
+        archive_url = source_meta.archive_url
+        is_valid_archive = bool(archive_url and archive_url.startswith("https://web.archive.org/"))
+
         return {
             "source_id": resolved_id,
             "title": title,
@@ -225,7 +241,9 @@ class SourceRegistry:
             "document_type": document_type,
             "jurisdiction": source_meta.jurisdiction,
             "official_url": source_meta.url,
+            "archive_url": archive_url,
             "is_authorised_url": self.is_authorised_url(source_meta.url),
+            "is_valid_archive_url": is_valid_archive,
             "content": content,
             "local_available": local_available,
             "publication_date": source_meta.publication_date,
@@ -247,6 +265,76 @@ class SourceRegistry:
             s_netloc = urlparse(s_url).netloc
             if netloc and s_netloc and (netloc == s_netloc or netloc.endswith("." + s_netloc)):
                 return True
+            if source.canonical_url:
+                c_netloc = urlparse(source.canonical_url.lower()).netloc
+                if netloc and c_netloc and (netloc == c_netloc or netloc.endswith("." + c_netloc)):
+                    return True
         return False
+
+    def validate_urls(self, check_network: bool = False) -> list[dict]:
+        """
+        Validate all registered external source URLs for formatting, host correctness,
+        obsolete paths (e.g. www.ipindia.gov.in host mismatch), and optionally connectivity.
+        """
+        from urllib.parse import urlparse
+        results = []
+
+        for source_id, source in self._sources.items():
+            entry = {
+                "source_id": source_id,
+                "url": source.url,
+                "canonical_url": source.canonical_url,
+                "is_valid": True,
+                "warnings": [],
+                "errors": [],
+            }
+
+            # 1. Structural syntax check
+            try:
+                parsed = urlparse(source.url)
+                if parsed.scheme not in ("http", "https") or not parsed.netloc:
+                    entry["is_valid"] = False
+                    entry["errors"].append("Malformed URL: scheme must be http/https and netloc non-empty")
+            except Exception as exc:
+                entry["is_valid"] = False
+                entry["errors"].append(f"Failed to parse URL: {exc}")
+
+            # 2. Check obsolete www.ipindia.gov.in host
+            if "www.ipindia.gov.in" in source.url.lower():
+                entry["is_valid"] = False
+                entry["errors"].append("Obsolete www.ipindia.gov.in host (SSL certificate mismatch error). Use ipindia.gov.in")
+
+            # 3. Check localhost / private host
+            if "localhost" in source.url.lower() or "127.0.0.1" in source.url:
+                entry["is_valid"] = False
+                entry["errors"].append("URL uses localhost or private IP instead of official domain")
+
+            # 4. Optional network connectivity check
+            if check_network and entry["is_valid"]:
+                import urllib.request
+                import urllib.error
+                import ssl
+                ctx = ssl.create_default_context()
+                req = urllib.request.Request(
+                    source.url,
+                    headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) IP-SAKTI-Auditor/1.0'}
+                )
+                try:
+                    with urllib.request.urlopen(req, timeout=5, context=ctx) as response:
+                        entry["network_status"] = response.status
+                        entry["final_url"] = response.url
+                except urllib.error.HTTPError as he:
+                    entry["network_status"] = he.code
+                    entry["warnings"].append(f"HTTP Server returned status {he.code}")
+                except urllib.error.URLError as ue:
+                    entry["warnings"].append(f"Network check failed (temporary server issue): {ue.reason}")
+                except Exception as ex:
+                    entry["warnings"].append(f"Network error: {ex}")
+
+            results.append(entry)
+
+        return results
+
+
 
 

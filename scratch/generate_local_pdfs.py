@@ -2,7 +2,7 @@ import os
 import json
 from pathlib import Path
 from reportlab.lib.pagesizes import letter
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, HRFlowable, Table, TableStyle
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, HRFlowable
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib import colors
 
@@ -10,6 +10,7 @@ DOCS_DIR = Path("data/documents")
 DOCS_DIR.mkdir(parents=True, exist_ok=True)
 
 KNOWLEDGE_DIR = Path("data/knowledge")
+SOURCES_CONFIG = Path("config/sources.json")
 
 def generate_pdf(doc_key, title, org, doc_type, jurisdiction, url, pub_date, content, outfile):
     doc = SimpleDocTemplate(
@@ -72,21 +73,17 @@ def generate_pdf(doc_key, title, org, doc_type, jurisdiction, url, pub_date, con
 
     elements = []
     
-    # Header tag
     elements.append(Paragraph("OFFICIAL AUTHORISED KNOWLEDGE DOCUMENT ARCHIVE", ParagraphStyle('HeaderTag', fontName='Helvetica-Bold', fontSize=8, leading=10, textColor=colors.HexColor('#2563eb'))))
     elements.append(Spacer(1, 4))
     elements.append(Paragraph(title, title_style))
     elements.append(HRFlowable(width="100%", thickness=1.5, color=colors.HexColor('#1e3a8a'), spaceAfter=12))
     
-    # Metadata Table
     meta_text = f"<b>Issuing Authority:</b> {org} &nbsp;&nbsp;|&nbsp;&nbsp; <b>Type:</b> {doc_type.upper()} &nbsp;&nbsp;|&nbsp;&nbsp; <b>Jurisdiction:</b> {jurisdiction.upper()}<br/><b>Document ID:</b> {doc_key} &nbsp;&nbsp;|&nbsp;&nbsp; <b>Publication Date:</b> {pub_date}"
     elements.append(Paragraph(meta_text, meta_style))
     elements.append(Spacer(1, 10))
     
-    # Section Heading
     elements.append(Paragraph("Statutory & Regulatory Provisions", heading_style))
     
-    # Main Content
     paragraphs = content.split("\n")
     for p in paragraphs:
         if p.strip():
@@ -100,88 +97,85 @@ def generate_pdf(doc_key, title, org, doc_type, jurisdiction, url, pub_date, con
     print(f"Generated PDF: {outfile}")
 
 def main():
-    # Map of document configurations
+    with open(SOURCES_CONFIG, "r", encoding="utf-8") as f:
+        sources_list = json.load(f)
+    
+    source_map = {s["source_id"]: s for s in sources_list}
+
     documents = [
         {
             "keys": ["ayush_rule_158b", "doc_ayush_rule_158b"],
-            "title": "Drugs and Cosmetics Rules, 1945 — Rule 158-B Licensing Requirements for ASU Drugs",
-            "org": "Ministry of AYUSH / Central Drugs Standard Control Organization",
-            "doc_type": "rule",
-            "jurisdiction": "india",
-            "url": "https://www.ayush.gov.in/docs/asu-l-rules.pdf",
-            "pub_date": "2010-08-10",
+            "source_id": "ayush_rule_158b",
             "kb_file": "doc_ayush_rule_158b.json"
         },
         {
             "keys": ["ayush_form_24d", "doc_ayush_form_24d"],
-            "title": "Form 24D Application Procedure and Checklist for ASU Manufacturing License",
-            "org": "Ministry of AYUSH",
-            "doc_type": "rule",
-            "jurisdiction": "india",
-            "url": "https://www.ayush.gov.in/regulatory-framework",
-            "pub_date": "2010-08-10",
+            "source_id": "ayush_form_24d",
             "kb_file": "doc_ayush_form_24d.json"
         },
         {
             "keys": ["ip_india_patents_act_3p", "doc_patents_act_3p", "patents_act_3p"],
-            "title": "The Patents Act, 1970 — Section 3(p) Inventions Not Patentable",
-            "org": "Office of the Controller General of Patents, Designs and Trade Marks",
-            "doc_type": "act",
-            "jurisdiction": "india",
-            "url": "https://www.ipindia.gov.in/patents.htm",
-            "pub_date": "1970-09-19",
+            "source_id": "ip_india_patents_act_3p",
             "kb_file": "doc_patents_act_3p.json"
         },
         {
             "keys": ["biodiversity_act_2002", "doc_biodiversity_act_2002"],
-            "title": "The Biological Diversity Act, 2002 — Access and Benefit Sharing (ABS) Provisions",
-            "org": "National Biodiversity Authority / MoEFCC",
-            "doc_type": "act",
-            "jurisdiction": "india",
-            "url": "https://www.indiacode.nic.in/handle/123456789/2046",
-            "pub_date": "2003-02-05",
+            "source_id": "biodiversity_act_2002",
             "kb_file": "doc_biodiversity_act_2002.json"
         },
         {
             "keys": ["nba_abs_regulations_2014", "doc_nba_abs_regulations_2014"],
-            "title": "Guidelines on Access to Biological Resources and Associated Knowledge Regulations 2014",
-            "org": "National Biodiversity Authority",
-            "doc_type": "regulation",
-            "jurisdiction": "india",
-            "url": "https://nbaindia.org/uploaded/pdf/ABS_Regulations_2014.pdf",
-            "pub_date": "2014-11-21",
+            "source_id": "nba_abs_regulations_2014",
             "kb_file": "doc_nba_abs_regulations_2014.json"
         },
         {
             "keys": ["tkdl_wipo_policy", "doc_tkdl_wipo_policy"],
-            "title": "WIPO Traditional Knowledge Digital Library (TKDL) & IP Protection Framework",
-            "org": "World Intellectual Property Organization / CSIR",
-            "doc_type": "database_entry",
-            "jurisdiction": "both",
-            "url": "https://www.wipo.int/tk/en/databases/tkdl.html",
-            "pub_date": "2018-05-14",
+            "source_id": "tkdl_wipo_policy",
             "kb_file": "doc_tkdl_wipo_policy.json"
+        },
+        {
+            "keys": ["ip_india_ayush_guidelines_2025", "doc_ip_india_ayush_guidelines_2025"],
+            "source_id": "ip_india_ayush_guidelines_2025",
+            "kb_file": "doc_ip_india_ayush_guidelines_2025.json"
         }
     ]
 
     for d in documents:
         kb_path = KNOWLEDGE_DIR / d["kb_file"]
         content = ""
+        title = ""
+        org = ""
+        doc_type = ""
+        jurisdiction = ""
+        pub_date = ""
+        url = ""
+
+        if d["source_id"] in source_map:
+            sm = source_map[d["source_id"]]
+            title = sm["title"]
+            org = sm["organisation"]
+            doc_type = sm["source_type"]
+            jurisdiction = sm["jurisdiction"]
+            url = sm["url"]
+            pub_date = sm.get("publication_date", "")
+
         if kb_path.exists():
             with kb_path.open("r", encoding="utf-8") as f:
                 data = json.load(f)
                 content = data.get("content", "")
+                if not title and data.get("title"):
+                    title = data.get("title")
 
         for key in d["keys"]:
             outfile = DOCS_DIR / f"{key}.pdf"
             generate_pdf(
                 doc_key=key,
-                title=d["title"],
-                org=d["org"],
-                doc_type=d["doc_type"],
-                jurisdiction=d["jurisdiction"],
-                url=d["url"],
-                pub_date=d["pub_date"],
+                title=title,
+                org=org,
+                doc_type=doc_type,
+                jurisdiction=jurisdiction,
+                url=url,
+                pub_date=pub_date,
                 content=content,
                 outfile=outfile
             )

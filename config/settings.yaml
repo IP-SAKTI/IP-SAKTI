@@ -108,7 +108,7 @@ jurisdictions:
 knowledge_sources:
   - id: ip_india
     name: "IP India"
-    url: "https://www.ipindia.gov.in"
+    url: "https://ipindia.gov.in"
     authority: "Office of the Controller General of Patents, Designs and Trade Marks"
   - id: wipo
     name: "WIPO"

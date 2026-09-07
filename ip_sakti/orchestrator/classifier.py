@@ -22,20 +22,20 @@ logger = logging.getLogger(__name__)
 
 _IP_KEYWORDS = {
     "patent", "prior art", "prior-art", "cgdptm", "wipo", "patentability",
-    "section 3", "section 3(p)", "section 3p", "claim", "novelty", "inventive step",
+    "section 3", "section 3(p)", "section 3p", "section 3(e)", "section 3e", "section 10",
+    "claim", "novelty", "inventive step",
     "patent office", "pct", "trademark", "copyright", "geographical indication", "gi tag",
 }
 
 _REGULATORY_KEYWORDS = {
-    "drug", "drugs", "medicine", "medicines",
     "licence", "license", "licensing",
     "manufacturing", "manufacturing license", "manufacturing licence",
+    "form 24d", "form 24-d", "schedule t",
     "drugs and cosmetics", "drugs and cosmetics rules",
     "rule 158", "rule 158b", "rule 158-b",
-    "ayush", "ayurveda", "ayurvedic", "ayurvedic medicine",
     "first schedule", "pharmacopoeia",
     "gmp", "good manufacturing",
-    "clinical trial", "safety", "efficacy", "labeling",
+    "clinical trial", "safety evidence", "labeling",
     "cosmetic", "nutraceutical", "phytopharmaceutical", "ayurveda-aahar",
 }
 
@@ -45,6 +45,7 @@ _TK_ABS_KEYWORDS = {
     "biological resource", "biological diversity act", "ayurvedic text", "heritage",
 }
 
+
 _INDIA_JURISDICTION_KEYWORDS = {
     "india", "indian", "cgdptm", "ayush", "nba", "national biodiversity authority",
     "drugs and cosmetics act", "biological diversity act", "delhi", "mumbai", "chennai", "kolkata",
@@ -53,6 +54,10 @@ _INDIA_JURISDICTION_KEYWORDS = {
 _INTL_JURISDICTION_KEYWORDS = {
     "international", "wipo", "pct", "uspto", "epo", "patent cooperation treaty",
     "united states", "europe", "japan", "foreign", "global",
+}
+
+_UNSUPPORTED_JURISDICTION_KEYWORDS = {
+    "antarctica", "moon", "mars", "outer space", "atlantis",
 }
 
 
@@ -71,9 +76,14 @@ class QueryClassifier:
         Returns
         -------
         Intent
-            IP, REGULATORY, TK_ABS, or AMBIGUOUS.
+            IP, REGULATORY, TK_ABS, AMBIGUOUS, or UNKNOWN.
         """
         text_lower = query_text.lower()
+
+        if any(kw in text_lower for kw in _UNSUPPORTED_JURISDICTION_KEYWORDS):
+            logger.info("Unsupported jurisdiction detected in query text; assigning UNKNOWN intent for safe abstention.")
+            return Intent.UNKNOWN
+
         words = set(re.findall(r"\w+", text_lower))
 
         ip_score = len(words.intersection(_IP_KEYWORDS)) + sum(
@@ -93,7 +103,11 @@ class QueryClassifier:
             logger.debug("No intent keywords matched, returning AMBIGUOUS")
             return Intent.AMBIGUOUS
 
-
+        # Multi-domain detection: if multiple domain scores are positive (> 0), treat as multi-domain / AMBIGUOUS
+        active_domains = [k for k, v in scores.items() if v > 0]
+        if len(active_domains) > 1:
+            logger.info(f"Multi-domain query detected across {active_domains}; assigning AMBIGUOUS intent.")
+            return Intent.AMBIGUOUS
 
         # Check for tie
         matching_intents = [k for k, v in scores.items() if v == max_score]

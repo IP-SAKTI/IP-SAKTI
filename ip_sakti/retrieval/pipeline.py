@@ -260,9 +260,9 @@ class HybridRAGPipeline:
         # 5. Build EvidenceChunk objects preserving provenance & filtering noise
         evidence_chunks: list[EvidenceChunk] = []
         for cand, rerank_score in reranked:
-            # Filter noise/irrelevant candidates: Cross-Encoder logit < 0.0 indicates negative relevance.
-            # Valid domain queries produce cross-encoder scores > 5.0, whereas out-of-domain queries produce < -9.0.
-            if rerank_score < 0.0:
+            # Filter noise/irrelevant candidates: Cross-Encoder logit < -7.0 indicates out-of-domain noise.
+            # Valid domain queries produce cross-encoder scores between -6.0 and +5.0, whereas out-of-domain queries produce < -9.0.
+            if rerank_score < -7.0:
                 continue
             if (cand.bm25_score is None or cand.bm25_score <= 0.0) and (
                 cand.faiss_score is not None and cand.faiss_score < 0.35

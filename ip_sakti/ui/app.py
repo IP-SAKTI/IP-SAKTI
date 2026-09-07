@@ -13,13 +13,27 @@ from __future__ import annotations
 import html
 import logging
 import os
+import sys
 from pathlib import Path
 from typing import Any, Dict, Optional
+
+# Ensure project root is in sys.path for Streamlit runner
+PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
 
 import httpx
 import streamlit as st
 
+from ip_sakti.retrieval.sources import SourceRegistry
+
 logger = logging.getLogger(__name__)
+
+
+@st.cache_resource
+def get_source_registry() -> SourceRegistry:
+    """Return cached SourceRegistry instance for UI source lookup."""
+    return SourceRegistry()
 
 
 # ---------------------------------------------------------------------------
@@ -964,12 +978,36 @@ def render_response(res: Dict[str, Any], filters: Dict[str, Any] | None = None) 
                     unsafe_allow_html=True,
                 )
 
+                # Resolve source metadata from registry if available
+                source_meta = get_source_registry().get_source(source_id_val) if source_id_val else None
+                official_url = source_meta.url if source_meta else chunk.get("source_url")
+                archive_url = source_meta.archive_url if (source_meta and source_meta.archive_url) else chunk.get("archive_url")
+
+                links_html = []
                 if doc_link:
-                    st.markdown(
-                        f'<div style="margin-top: 0.25rem; margin-bottom: 1rem;">'
+                    links_html.append(
                         f'<a href="{doc_link}" target="_blank" rel="noopener noreferrer" '
                         f'style="color: #2563eb; font-weight: 600; text-decoration: underline;">'
-                        f'📄 View Source Document</a></div>',
+                        f'📄 View Source Document</a>'
+                    )
+                if official_url and official_url.startswith("http"):
+                    links_html.append(
+                        f'<a href="{official_url}" target="_blank" rel="noopener noreferrer" '
+                        f'style="color: #059669; font-weight: 600; text-decoration: underline;">'
+                        f'🌐 Open Official Source</a>'
+                    )
+                if archive_url and archive_url.startswith("https://web.archive.org/"):
+                    links_html.append(
+                        f'<a href="{archive_url}" target="_blank" rel="noopener noreferrer" '
+                        f'style="color: #4b5563; font-weight: 600; text-decoration: underline;">'
+                        f'🏛️ View Archived Source</a>'
+                    )
+
+                if links_html:
+                    links_joined = " &nbsp;&nbsp;|&nbsp;&nbsp; ".join(links_html)
+                    st.markdown(
+                        f'<div style="margin-top: 0.35rem; margin-bottom: 1.25rem; font-size: 0.9rem;">'
+                        f'{links_joined}</div>',
                         unsafe_allow_html=True,
                     )
 
