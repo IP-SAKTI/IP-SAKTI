@@ -107,6 +107,11 @@ async def process_query(payload: APIQueryRequest) -> APIQueryResponse:
 
         agents_str = [a.value for a in final_resp.agents_invoked]
 
+        logger.info(
+            f"[IP-SAKTI RUNTIME answerability-fix-v2] Query: {query_req.raw_query!r} | "
+            f"IsAbstention: {final_resp.is_abstention} | EvidenceCount: {len(final_resp.evidence)}"
+        )
+
         return APIQueryResponse(
             query_id=final_resp.query_id,
             answer=final_resp.answer,
@@ -117,6 +122,7 @@ async def process_query(payload: APIQueryRequest) -> APIQueryResponse:
             agents_invoked=agents_str,
             disclaimer=final_resp.disclaimer,
         )
+
     except Exception as exc:
         logger.error(f"Error processing query in API endpoint: {exc}", exc_info=True)
         raise HTTPException(

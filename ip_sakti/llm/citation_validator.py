@@ -95,7 +95,11 @@ class CitationValidator:
                 # For very short sentences (<=4 words), 1 content overlap is enough.
                 # For longer sentences, require at least 2 overlapping content words.
                 min_overlap = 1 if len(sentence_words) <= 4 else 2
-                is_grounded = overlap >= min_overlap or len(content_sentence_words) == 0
+                meta_patterns = ["not mentioned", "not defined", "cannot be established", "no information", "not found in"]
+                is_meta_claim = any(pat in clean_sentence for pat in meta_patterns)
+
+                is_grounded = not is_meta_claim and (overlap >= min_overlap or len(content_sentence_words) == 0)
+
 
                 records.append(
                     CitationRecord(

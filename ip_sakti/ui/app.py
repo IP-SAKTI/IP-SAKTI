@@ -788,7 +788,9 @@ def render_response(res: Dict[str, Any], filters: Dict[str, Any] | None = None) 
         else "Not specified"
     )
 
-    if confidence and "score" in confidence:
+    if is_abstention:
+        confidence_text = "—"
+    elif confidence and "score" in confidence:
         confidence_text = f"{confidence['score'] * 100:.0f}%"
     else:
         confidence_text = "—"
@@ -858,7 +860,7 @@ def render_response(res: Dict[str, Any], filters: Dict[str, Any] | None = None) 
     # Confidence details
     # ---------------------------------------------------------------
 
-    if confidence:
+    if confidence and not is_abstention:
         with st.expander("Confidence & verification", expanded=False):
 
             m1, m2, m3, m4 = st.columns(4)
@@ -892,7 +894,8 @@ def render_response(res: Dict[str, Any], filters: Dict[str, Any] | None = None) 
     # Evidence
     # ---------------------------------------------------------------
 
-    if evidence:
+    if evidence and not is_abstention:
+
         with st.expander(
             f"Sources & evidence · {len(evidence)}",
             expanded=False,

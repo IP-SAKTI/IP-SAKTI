@@ -57,7 +57,9 @@ class TKABSAgent(BaseAgent):
         if search_query and not any(kw in search_query.lower() for kw in tk_keywords):
             search_query = f"{search_query} Traditional Knowledge Biological Diversity Act Access and Benefit Sharing NBA"
 
-        evidence_chunks = pipeline.search(search_query)
+        evidence_chunks = pipeline.search(search_query, original_query=context.translated_query)
+
+
 
         summary = (
             f"TK/ABS Agent evaluated query for Biological Diversity Act 2002, "

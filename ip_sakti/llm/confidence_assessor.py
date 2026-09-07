@@ -109,6 +109,7 @@ class ConfidenceAssessor:
 
         if rerank_scores:
             raw_avg = sum(rerank_scores) / len(rerank_scores)
+            raw_max = max(rerank_scores)
 
             # Convert cross-encoder logits to a 0–1 value.
             avg_rerank = 1.0 / (
@@ -117,9 +118,17 @@ class ConfidenceAssessor:
                     -max(-10.0, min(10.0, raw_avg))
                 )
             )
+            max_rerank = 1.0 / (
+                1.0
+                + math.exp(
+                    -max(-10.0, min(10.0, raw_max))
+                )
+            )
         else:
             # If rerank scores are unavailable, use a neutral value.
+            raw_max = -10.0
             avg_rerank = 0.5
+            max_rerank = 0.5
 
         # ------------------------------------------------------------------
         # 3. Calculate citation coverage
@@ -136,11 +145,6 @@ class ConfidenceAssessor:
 
         else:
             # No [SOURCE_X] citations were found in the answer.
-            # An uncited answer should NOT receive full citation coverage.
-            # Use a mild penalty (0.6) to avoid artificially inflating
-            # confidence for answers that do not cite evidence inline.
-            # 0.6 is neutral — it does not automatically trigger abstention
-            # but prevents the score from being boosted to 1.0.
             citation_coverage = (
                 0.6
                 if evidence_count >= self.min_evidence_chunks
@@ -157,14 +161,29 @@ class ConfidenceAssessor:
         )
 
         # ------------------------------------------------------------------
-        # 5. Calculate overall confidence score
+        # 5. IMPORTANT SAFETY CHECK & SCORE CALCULATION
         # ------------------------------------------------------------------
-
-        score = float(
-            0.4 * avg_rerank
-            + 0.4 * citation_coverage
-            + 0.2 * count_factor
+        #
+        # A response can have perfect citation coverage while still being
+        # based on irrelevant documents.
+        #
+        # If strongest chunk rerank score raw_max < 0.0 (or avg_rerank < safety threshold),
+        # the retrieval is unsafe and score must be zeroed out.
+        retrieval_unsafe = (
+            raw_max < 0.0
+            or avg_rerank < self.retrieval_safety_threshold
         )
+
+        if retrieval_unsafe:
+            score = 0.0
+        else:
+            # Relevance dominates score (50% max/avg rerank relevance, 35% citation coverage, 15% count)
+            relevance_weight = 0.5 * (0.6 * max_rerank + 0.4 * avg_rerank)
+            score = float(
+                relevance_weight
+                + 0.35 * citation_coverage
+                + 0.15 * count_factor
+            )
 
         score = round(
             max(0.0, min(1.0, score)),
@@ -172,31 +191,7 @@ class ConfidenceAssessor:
         )
 
         # ------------------------------------------------------------------
-        # 6. IMPORTANT SAFETY CHECK
-        # ------------------------------------------------------------------
-        #
-        # A response can have perfect citation coverage while still being
-        # based on irrelevant documents.
-        #
-        # Example:
-        #
-        # User asks:
-        # "What is the patent fee in Antarctica?"
-        #
-        # Retrieved documents:
-        # "Indian Ayurvedic manufacturing licence"
-        #
-        # The LLM may correctly cite those documents, but they do not
-        # answer the user's question.
-        #
-        # Therefore extremely poor retrieval relevance forces abstention.
-
-        retrieval_unsafe = (
-            avg_rerank < self.retrieval_safety_threshold
-        )
-
-        # ------------------------------------------------------------------
-        # 7. Determine whether the answer is safe
+        # 6. Determine whether the answer is safe
         # ------------------------------------------------------------------
 
         below_threshold = (
@@ -204,6 +199,7 @@ class ConfidenceAssessor:
             or evidence_count < self.min_evidence_chunks
             or retrieval_unsafe
         )
+
 
         # ------------------------------------------------------------------
         # 8. Explain why abstention happened

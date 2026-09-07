@@ -172,6 +172,7 @@ class HybridRAGPipeline:
         faiss_top_k: int | None = None,
         bm25_top_k: int | None = None,
         rerank_top_k: int | None = None,
+        original_query: str | None = None,
     ) -> list[EvidenceChunk]:
         """
         Run the complete Hybrid RAG pipeline for a normalised/translated query.
@@ -187,13 +188,15 @@ class HybridRAGPipeline:
         Parameters
         ----------
         query_text :
-            The normalised/translated English query text from Stage 2.
+            The normalised/translated English query text from Stage 2 (or agent-enriched query).
         faiss_top_k :
             Optional override for dense retrieval candidate limit.
         bm25_top_k :
             Optional override for sparse retrieval candidate limit.
         rerank_top_k :
             Optional override for final evidence count.
+        original_query :
+            Optional raw/translated user query text to use for cross-encoder evaluation.
 
         Returns
         -------
@@ -237,13 +240,15 @@ class HybridRAGPipeline:
         if not fused_candidates:
             return []
 
-        # 4. Cross-Encoder reranking
+        # 4. Cross-Encoder reranking (evaluated against clean user query)
+        eval_query = original_query.strip() if (original_query and original_query.strip()) else clean_query
         try:
             reranked = self.reranker.rerank(
-                query=clean_query,
+                query=eval_query,
                 candidates=fused_candidates,
                 top_k=r_top_k,
             )
+
         except Exception as exc:
             logger.error(f"CrossEncoder reranking failed: {exc}")
             # Fall back to top fused candidates without reranking if reranker fails
@@ -255,14 +260,15 @@ class HybridRAGPipeline:
         # 5. Build EvidenceChunk objects preserving provenance & filtering noise
         evidence_chunks: list[EvidenceChunk] = []
         for cand, rerank_score in reranked:
-            # Filter noise candidates: strongly irrelevant cross-encoder scores (< -3.0)
-            # or zero keyword match with low dense similarity (< 0.35)
-            if rerank_score < -3.0:
+            # Filter noise/irrelevant candidates: Cross-Encoder logit < 0.0 indicates negative relevance.
+            # Valid domain queries produce cross-encoder scores > 5.0, whereas out-of-domain queries produce < -9.0.
+            if rerank_score < 0.0:
                 continue
             if (cand.bm25_score is None or cand.bm25_score <= 0.0) and (
                 cand.faiss_score is not None and cand.faiss_score < 0.35
             ):
                 continue
+
 
 
             chunk = cand.chunk

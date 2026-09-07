@@ -56,7 +56,9 @@ class IPAgent(BaseAgent):
         if search_query and not any(kw in search_query.lower() for kw in ip_keywords):
             search_query = f"{search_query} patent patentability section 3(p) prior art"
 
-        evidence_chunks = pipeline.search(search_query)
+        evidence_chunks = pipeline.search(search_query, original_query=context.translated_query)
+
+
 
         summary = (
             f"IP Agent evaluated query for patentability, Section 3(p), "

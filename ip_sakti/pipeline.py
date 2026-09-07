@@ -125,6 +125,8 @@ class PipelineCoordinator:
         seen_chunk_ids: set[str] = set()
         primary_agent_type: AgentType = target_agent_types[0] if target_agent_types else AgentType.IP_AGENT
 
+
+
         for agent_type in target_agent_types:
             agent = self.agents.get(agent_type)
             if agent is None:

@@ -38,10 +38,13 @@ class AgentRouter:
             target_agents = [AgentType.REGULATORY_AGENT]
         elif context.intent == Intent.TK_ABS:
             target_agents = [AgentType.TK_ABS_AGENT]
-        else:
-            # Ambiguous intent: default to routing to IP and Regulatory agents
+        elif context.intent == Intent.AMBIGUOUS:
             logger.info("Ambiguous intent detected; routing to IP and Regulatory agents.")
             target_agents = [AgentType.IP_AGENT, AgentType.REGULATORY_AGENT]
+        else:
+            logger.info("Unknown/unsupported intent detected; returning no agents.")
+            target_agents = []
+
 
         logger.debug(
             "Query routed to agent(s)",

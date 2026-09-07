@@ -27,6 +27,8 @@ class Intent(str, Enum):
     REGULATORY = "regulatory"
     TK_ABS = "tk_abs"
     AMBIGUOUS = "ambiguous"
+    UNKNOWN = "unknown"
+
 
 
 class Jurisdiction(str, Enum):
