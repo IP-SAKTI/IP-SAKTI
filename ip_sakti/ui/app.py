@@ -229,57 +229,53 @@ LOGO_PATH = ASSET_DIR / "ip_sakti_sahayak.png"
 # ---------------------------------------------------------------------------
 
 def inject_styles() -> None:
-    """Apply the visual system for the IP-SAKTI interface."""
+    """Apply the visual system for the IP-SAKTI interface matching reference screenshot EXACTLY."""
 
     md_html(
         """
         <style>
-
-        /* ---------------------------------------------------------------
-           Global palette
-        --------------------------------------------------------------- */
+        @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400;1,600&family=IBM+Plex+Sans:wght@300;400;500;600;700&display=swap');
 
         :root {
-            --parchment: #f4efdf;
-            --parchment-soft: #faf7ed;
-            --ink: #173f35;
-            --ink-soft: #53645f;
-            --navy: #192b4a;
-            --navy-deep: #14233e;
-            --green: #527d62;
-            --green-soft: #dce7dc;
-            --turmeric: #c99738;
-            --line: #d8d0bd;
-            --white: #fffdf7;
+            --forest-deep: #003E29;
+            --forest-mid: #044D34;
+            --forest-accent: #195941;
+            --parchment: #EEF3E4;
+            --card-bg: #FAFDF6;
+            --card-border: #C8D7C2;
+            --ink-dark: #003E29;
+            --ink-muted: #385246;
+            --text-light: #E2EFE9;
+            --text-muted-light: #7B9F8E;
         }
 
-        /* Main application */
+        /* Main application background */
         .stApp,
         div[data-testid="stAppViewContainer"] {
-            background: var(--parchment);
-            color: var(--ink);
+            background-color: var(--parchment) !important;
+            color: var(--ink-dark);
+            font-family: 'IBM Plex Sans', sans-serif !important;
             overflow-y: auto !important;
         }
 
         .main .block-container {
-            max-width: 1280px;
-            padding-top: 3.5rem;
-            padding-bottom: 6rem;
+            max-width: 1100px !important;
+            padding-top: 1.2rem !important;
+            padding-bottom: 5rem !important;
+            position: relative !important;
+            z-index: 1 !important;
         }
 
-        /* Remove Streamlit's default top chrome */
+        /* Remove default Streamlit top header & footer */
         header[data-testid="stHeader"] {
-            background: var(--parchment);
-            height: 0;
+            background: transparent !important;
+            height: 0 !important;
         }
-
         header[data-testid="stHeader"] > div {
-            display: none;
+            display: none !important;
         }
-
-        /* Remove bottom decoration & unwanted fullscreen button */
         footer {
-            visibility: hidden;
+            visibility: hidden !important;
         }
 
         button[title="View fullscreen"],
@@ -292,145 +288,74 @@ def inject_styles() -> None:
             opacity: 0 !important;
         }
 
-        /* Auth Panel Styling */
-        .auth-card {
-            background: #ffffff;
-            border-radius: 12px;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.05);
-            border: 1px solid #d8d0bd;
-            padding: 2.5rem;
-            margin-top: 1rem;
-        }
-
-        .auth-title {
-            font-family: Georgia, "Times New Roman", serif;
-            font-size: 1.85rem;
-            font-weight: 600;
-            color: #173f35;
-            margin-bottom: 0.3rem;
-        }
-
-        .auth-subtitle {
-            font-family: "IBM Plex Sans", Arial, sans-serif;
-            font-size: 0.92rem;
-            color: #53645f;
-            margin-bottom: 1.8rem;
-        }
-
-        .user-profile-header {
-            display: flex;
-            align-items: center;
-            justify-content: flex-end;
-            margin-bottom: 1rem;
-        }
-
-
-        /* ---------------------------------------------------------------
-           Sidebar
-        --------------------------------------------------------------- */
-
+        /* Sidebar Styling */
         section[data-testid="stSidebar"] {
-            background: var(--navy);
-            border-right: 1px solid rgba(255,255,255,0.08);
+            background-color: var(--forest-deep) !important;
+            border-right: none !important;
+            width: 270px !important;
         }
 
         section[data-testid="stSidebar"] > div {
-            background: var(--navy);
-            padding: 1.8rem 1.55rem;
+            background-color: var(--forest-deep) !important;
+            padding: 1.4rem 1.1rem !important;
         }
 
         section[data-testid="stSidebar"] * {
-            color: #f4f0e5;
+            color: var(--text-light);
+            font-family: 'IBM Plex Sans', sans-serif !important;
         }
 
-        section[data-testid="stSidebar"] hr {
-            border: none;
-            border-top: 1px solid rgba(255,255,255,0.15);
-            margin: 1.45rem 0;
+        /* Sidebar New Chat Button */
+        button[key="btn_new_chat"],
+        section[data-testid="stSidebar"] button[key="btn_new_chat"] {
+            background: rgba(255, 255, 255, 0.05) !important;
+            border: 1px solid #1E5C46 !important;
+            color: #FFFFFF !important;
+            border-radius: 8px !important;
+            font-size: 0.88rem !important;
+            font-weight: 500 !important;
+            padding: 0.5rem 0.8rem !important;
+            min-height: 42px !important;
+            text-align: center !important;
+            margin-bottom: 1rem !important;
+            transition: all 0.2s ease !important;
         }
 
-        .sidebar-logo, [data-testid="stSidebar"] [data-testid="stImage"] {
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            background: transparent !important;
-            margin: 0.2rem auto 0.4rem auto;
-            text-align: center;
+        button[key="btn_new_chat"]:hover {
+            background: #0A4F37 !important;
+            border-color: #519E7E !important;
         }
 
-        .sidebar-logo img, [data-testid="stSidebar"] [data-testid="stImage"] img {
-            width: 85px !important;
-            max-width: 85px !important;
-            height: auto !important;
-            background: transparent !important;
-            margin: 0 auto !important;
+        /* Sidebar Search Box */
+        section[data-testid="stSidebar"] div[data-testid="stTextInput"] input {
+            background-color: #003322 !important;
+            border: 1px solid #1E5C46 !important;
+            border-radius: 8px !important;
+            color: #E2EFE9 !important;
+            font-size: 0.82rem !important;
+            height: 36px !important;
+            padding: 0 0.8rem !important;
         }
 
-        .sidebar-brand {
-            text-align: center;
-            margin-bottom: 1.35rem;
+        section[data-testid="stSidebar"] div[data-testid="stTextInput"] input::placeholder {
+            color: #7B9F8E !important;
         }
 
-        .sidebar-brand-name {
-            font-family: Georgia, "Times New Roman", serif;
-            font-size: 1.12rem;
-            font-weight: 600;
-            letter-spacing: 0.01em;
-        }
-
-        .sidebar-brand-subtitle {
-            margin-top: 0.2rem;
-            margin-bottom: 0.8rem;
-            text-align: center;
-            font-family: "IBM Plex Sans", Arial, sans-serif;
-            font-size: 0.76rem;
-            color: rgba(244,240,229,0.68) !important;
-        }
-
-        .sidebar-section-title {
-            margin-bottom: 0.85rem;
-            font-family: "IBM Plex Sans", Arial, sans-serif;
-            font-size: 0.72rem;
-            font-weight: 700;
-            letter-spacing: 0.12em;
-            text-transform: uppercase;
-            color: rgba(244,240,229,0.62) !important;
-        }
-
-        .sidebar-version {
-            text-align: center;
-            margin-top: 2rem;
-            font-family: "IBM Plex Sans", Arial, sans-serif;
-            font-size: 0.7rem;
-            color: rgba(244,240,229,0.48) !important;
-        }
-
-        section[data-testid="stSidebar"] div[data-baseweb="select"] > div {
-            background: rgba(10,17,29,0.82);
-            border: 1px solid rgba(255,255,255,0.07);
-            border-radius: 8px;
-            min-height: 44px;
-        }
-
-        section[data-testid="stSidebar"] label {
-            font-size: 0.82rem;
-            font-weight: 600;
-        }
-
-        /* Sidebar chat history items */
+        /* Sidebar Chat History Buttons */
         section[data-testid="stSidebar"] div[data-testid="stHorizontalBlock"] {
-            gap: 0.25rem !important;
-            margin-bottom: 0.35rem !important;
+            gap: 0.2rem !important;
+            margin-bottom: 0.25rem !important;
         }
 
         section[data-testid="stSidebar"] div[data-testid="stHorizontalBlock"] button {
-            background: rgba(255,255,255,0.06) !important;
-            border: 1px solid rgba(255,255,255,0.12) !important;
-            color: #f4efdf !important;
-            font-size: 0.8rem !important;
-            padding: 0.35rem 0.6rem !important;
-            min-height: 38px !important;
+            background: transparent !important;
+            border: none !important;
+            color: #CBE0D6 !important;
+            font-size: 0.82rem !important;
+            padding: 0.35rem 0.5rem !important;
+            min-height: 34px !important;
             border-radius: 6px !important;
+            text-align: left !important;
             box-shadow: none !important;
             white-space: nowrap !important;
             overflow: hidden !important;
@@ -438,176 +363,205 @@ def inject_styles() -> None:
         }
 
         section[data-testid="stSidebar"] div[data-testid="stHorizontalBlock"] button:hover {
-            background: rgba(255,255,255,0.16) !important;
-            border-color: #c99738 !important;
-            color: #ffffff !important;
+            background: #0A4F37 !important;
+            color: #FFFFFF !important;
         }
 
+        /* Bottom Sidebar Buttons */
+        button[key="sb_btn_settings"],
+        button[key="sb_btn_logout"] {
+            background: rgba(255, 255, 255, 0.05) !important;
+            border: 1px solid #1E5C46 !important;
+            color: #E2EFE9 !important;
+            border-radius: 8px !important;
+            font-size: 0.84rem !important;
+            min-height: 38px !important;
+            margin-top: 0.4rem !important;
+        }
 
-        /* ---------------------------------------------------------------
-           Typography
-        --------------------------------------------------------------- */
+        button[key="sb_btn_settings"]:hover,
+        button[key="sb_btn_logout"]:hover {
+            background: #0A4F37 !important;
+            border-color: #519E7E !important;
+        }
 
-        .eyebrow {
-            font-family: Georgia, "Times New Roman", serif;
+        /* Top Right User Profile Pill Styling */
+        div[data-testid="stExpander"] {
+            background: #FAFDF6 !important;
+            border: 1px solid #C8D7C2 !important;
+            border-radius: 8px !important;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.03) !important;
+            margin-bottom: 0 !important;
+        }
+
+        div[data-testid="stExpander"] summary {
+            font-family: 'IBM Plex Sans', sans-serif !important;
+            font-size: 0.88rem !important;
+            font-weight: 600 !important;
+            color: #003E29 !important;
+            padding: 0.4rem 0.8rem !important;
+        }
+
+        /* Hero Section Typography */
+        .hero-tagline {
+            font-family: 'Cormorant Garamond', Georgia, serif;
             font-style: italic;
-            font-size: 1rem;
-            color: var(--green);
-            margin-bottom: 0.65rem;
+            font-size: 1.25rem;
+            color: #003E29;
+            margin-bottom: 0.6rem;
+            margin-top: 0.6rem;
         }
 
-        .hero-title {
-            margin: 0;
-            font-family: Georgia, "Times New Roman", serif;
-            font-size: clamp(2.4rem, 4vw, 4rem);
-            line-height: 1.04;
-            font-weight: 500;
-            letter-spacing: -0.035em;
-            color: var(--ink);
+        .hero-heading {
+            font-family: 'Cormorant Garamond', Georgia, serif;
+            font-size: 3.6rem;
+            font-weight: 600;
+            color: #003E29;
+            letter-spacing: -0.025em;
+            line-height: 1.05;
+            margin-bottom: 1.1rem;
         }
 
-        .hero-description {
-            max-width: 850px;
-            margin-top: 1rem;
-            margin-bottom: 2rem;
-            font-family: "IBM Plex Sans", Arial, sans-serif;
-            font-size: 1rem;
-            line-height: 1.7;
-            color: var(--ink-soft);
-        }
-
-        /* ---------------------------------------------------------------
-           Research directions
-        --------------------------------------------------------------- */
-
-        .research-grid {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 2rem;
-            margin: 1.5rem 0 1.9rem 0;
-        }
-
-        .research-item {
-            padding: 0.35rem 1rem 0.35rem 1.1rem;
-            border-left: 2px solid var(--green);
-        }
-
-        .research-title {
-            font-family: "IBM Plex Sans", Arial, sans-serif;
-            font-size: 0.9rem;
-            font-weight: 700;
-            color: var(--ink);
-            margin-bottom: 0.55rem;
-        }
-
-        .research-copy {
-            font-family: "IBM Plex Sans", Arial, sans-serif;
-            font-size: 0.8rem;
+        .hero-subtext {
+            font-family: 'IBM Plex Sans', sans-serif;
+            font-size: 1.05rem;
             line-height: 1.65;
-            color: var(--ink-soft);
+            color: #385246;
+            max-width: 820px;
+            margin-bottom: 2.2rem;
         }
 
-        /* ---------------------------------------------------------------
-           Suggested queries
-        --------------------------------------------------------------- */
+        /* Botanical Overlay Layers */
+        .botanical-bg-container {
+            position: fixed;
+            top: 0;
+            left: 270px;
+            right: 0;
+            bottom: 0;
+            pointer-events: none;
+            z-index: 0;
+            overflow: hidden;
+        }
 
-        .suggested-label {
-            margin-top: 1.2rem;
-            margin-bottom: 0.55rem;
-            font-family: "IBM Plex Sans", Arial, sans-serif;
-            font-size: 0.76rem;
+        .botanical-leaf {
+            position: absolute;
+            pointer-events: none;
+        }
+
+        .bot-top-left {
+            top: -40px;
+            left: -20px;
+            opacity: 0.82;
+        }
+
+        .bot-top-right {
+            top: -50px;
+            right: -30px;
+            opacity: 0.85;
+        }
+
+        .bot-bottom-left {
+            bottom: -30px;
+            left: -20px;
+            opacity: 0.82;
+        }
+
+        .bot-bottom-right {
+            bottom: -40px;
+            right: -30px;
+            opacity: 0.88;
+        }
+
+        .bot-float-1 {
+            top: 140px;
+            right: 280px;
+            opacity: 0.55;
+            transform: rotate(25deg);
+        }
+
+        /* Feature Cards Grid */
+        .feature-card {
+            background: #FAFDF6;
+            border: 1px solid #C8D7C2;
+            border-left: 4px solid #003E29;
+            border-radius: 10px;
+            padding: 1.3rem 1.4rem;
+            min-height: 145px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.02);
+            transition: transform 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease;
+        }
+
+        .feature-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 14px rgba(0, 0, 0, 0.05);
+            background: #F4FAF0;
+        }
+
+        .feature-card-title {
+            font-family: 'Cormorant Garamond', Georgia, serif;
+            font-size: 1.22rem;
             font-weight: 700;
-            color: var(--green);
+            color: #003E29;
         }
 
-        /* ---------------------------------------------------------------
-           Suggested query buttons (cream, main area only)
-           IMPORTANT: scope to main area only -- sidebar inherits its own
-           button styles defined above.
-        --------------------------------------------------------------- */
+        .feature-card-copy {
+            font-family: 'IBM Plex Sans', sans-serif;
+            font-size: 0.86rem;
+            line-height: 1.55;
+            color: #4A6357;
+            margin-top: 0.5rem;
+        }
 
-        /* Suggested query buttons in main content area */
-        .suggested-query button,
-        .main [data-testid="stHorizontalBlock"] button:not([data-testid="stSidebar"] *),
-        [data-testid="stMainBlockContainer"] .stButton button {
-            background: #e8e1cf !important;
-            border: 1px solid #d4cca9 !important;
-            color: #173f35 !important;
-            font-family: "IBM Plex Sans", Arial, sans-serif !important;
-            font-size: 0.82rem !important;
-            font-weight: 500 !important;
+        /* Feature Card Action Buttons */
+        .feature-card-btn button {
+            background: #FAFDF6 !important;
+            border: 1px solid #C8D7C2 !important;
+            border-left: 4px solid #003E29 !important;
+            border-radius: 10px !important;
+            padding: 1rem 1.2rem !important;
+            min-height: 145px !important;
             text-align: left !important;
-            min-height: 44px !important;
-            padding: 0.55rem 0.85rem !important;
-            border-radius: 6px !important;
-            box-shadow: none !important;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.02) !important;
+            transition: all 0.2s ease !important;
         }
 
-        .suggested-query button:hover,
-        .main [data-testid="stHorizontalBlock"] button:not([data-testid="stSidebar"] *):hover,
-        [data-testid="stMainBlockContainer"] .stButton button:hover {
-            border-color: #527d62 !important;
-            color: #173f35 !important;
-            background: #ded6bf !important;
+        .feature-card-btn button:hover {
+            transform: translateY(-2px) !important;
+            background: #F4FAF0 !important;
+            border-color: #003E29 !important;
+            box-shadow: 0 4px 14px rgba(0, 0, 0, 0.06) !important;
         }
 
-        /* Sidebar: compact action buttons (New Chat, Settings, Logout) */
-        section[data-testid="stSidebar"] > div .stButton button,
-        section[data-testid="stSidebar"] .stButton button {
-            background: rgba(255,255,255,0.08) !important;
-            border: 1px solid rgba(255,255,255,0.14) !important;
-            color: #f4efdf !important;
-            font-family: "IBM Plex Sans", Arial, sans-serif !important;
-            font-size: 0.82rem !important;
-            font-weight: 500 !important;
-            text-align: left !important;
-            min-height: 34px !important;
-            max-height: 40px !important;
-            padding: 0.3rem 0.7rem !important;
-            border-radius: 6px !important;
-            box-shadow: none !important;
-            white-space: nowrap !important;
-            overflow: hidden !important;
-            text-overflow: ellipsis !important;
-        }
-
-        section[data-testid="stSidebar"] > div .stButton button:hover,
-        section[data-testid="stSidebar"] .stButton button:hover {
-            background: rgba(255,255,255,0.18) !important;
-            border-color: #c99738 !important;
-            color: #ffffff !important;
-        }
-
-        /* ---------------------------------------------------------------
-           Conversation & Chat Avatars
-        --------------------------------------------------------------- */
-
-        /* Hide default Streamlit chat avatars completely */
-        [data-testid="stChatMessageAvatarUser"],
-        [data-testid="stChatMessageAvatarAssistant"],
-        [data-testid="stChatMessageAvatarSystem"],
-        [data-testid="stChatMessage"] [data-testid="stChatMessageAvatar"],
-        .stChatMessage [data-testid="stChatMessageAvatar"] {
-            display: none !important;
-        }
-
-        /* Clean Streamlit chat message containers */
-        [data-testid="stChatMessage"] {
+        /* Chat Input Styling */
+        [data-testid="stBottom"],
+        div[data-testid="stChatInput"] {
             background: transparent !important;
             border: none !important;
-            padding: 0 !important;
-            margin-bottom: 1.5rem !important;
         }
 
-        [data-testid="stChatMessageContent"] {
-            padding: 0 !important;
-            width: 100% !important;
+        div[data-testid="stChatInput"] > div {
+            background: #FFFFFF !important;
+            border: 1px solid #C8D7C2 !important;
+            border-radius: 10px !important;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.03) !important;
+            padding: 4px 6px !important;
         }
 
-        /* ---------------------------------------------------------------
-           User message block
-        --------------------------------------------------------------- */
+        div[data-testid="stChatInput"] textarea {
+            color: #003E29 !important;
+            font-size: 0.92rem !important;
+            font-family: 'IBM Plex Sans', sans-serif !important;
+        }
 
+        div[data-testid="stChatInput"] button {
+            background: #003E29 !important;
+            color: #FFFFFF !important;
+            border-radius: 8px !important;
+            width: 42px !important;
+            height: 42px !important;
+        }
+
+        /* User Message Wrapper */
         .user-message-wrapper {
             display: flex;
             flex-direction: column;
@@ -617,10 +571,10 @@ def inject_styles() -> None:
         }
 
         .user-message-author {
-            font-family: "IBM Plex Sans", Arial, sans-serif;
+            font-family: 'IBM Plex Sans', sans-serif;
             font-size: 0.72rem;
             font-weight: 600;
-            color: var(--green);
+            color: #003E29;
             margin-bottom: 0.3rem;
             text-transform: uppercase;
             letter-spacing: 0.08em;
@@ -628,237 +582,52 @@ def inject_styles() -> None:
         }
 
         .user-message-body {
-            background: #faf7ed;
-            border: 1px solid #d8d0bd;
+            background: #FAFDF6;
+            border: 1px solid #C8D7C2;
             border-radius: 8px;
             padding: 0.85rem 1.15rem;
-            font-family: "IBM Plex Sans", Arial, sans-serif;
+            font-family: 'IBM Plex Sans', sans-serif;
             font-size: 0.96rem;
             line-height: 1.6;
-            color: #173f35 !important;
+            color: #003E29 !important;
             box-shadow: 0 1px 3px rgba(0,0,0,0.02);
             word-break: break-word;
         }
 
-        .user-message-body p {
-            color: #173f35 !important;
-            margin: 0;
-        }
-
-        /* ---------------------------------------------------------------
-           Response area & Metadata
-        --------------------------------------------------------------- */
-
+        /* Assistant Response Card */
         .response-label {
             margin-top: 0.4rem;
             margin-bottom: 0.65rem;
-            font-family: Georgia, "Times New Roman", serif;
-            font-size: 1.4rem;
+            font-family: 'Cormorant Garamond', Georgia, serif;
+            font-size: 1.45rem;
             font-weight: 600;
-            color: var(--ink);
+            color: #003E29;
             letter-spacing: -0.01em;
         }
 
         .response-text {
-            font-family: "IBM Plex Sans", Arial, sans-serif;
+            font-family: 'IBM Plex Sans', sans-serif;
             font-size: 0.96rem;
             line-height: 1.75;
-            color: #263a35;
+            color: #263A35;
             margin-bottom: 1.4rem;
-        }
-
-        .status-line {
-            display: flex;
-            align-items: center;
-            gap: 1.2rem;
-            flex-wrap: wrap;
-            margin: 0.4rem 0 1.2rem 0;
-            padding-bottom: 0.85rem;
-            border-bottom: 1px solid var(--line);
-            font-family: "IBM Plex Sans", Arial, sans-serif;
-            font-size: 0.78rem;
-            color: var(--ink-soft);
-        }
-
-        .status-label {
-            font-weight: 600;
-            color: var(--ink);
-        }
-
-        .status-sep {
-            color: var(--line);
-            font-size: 0.72rem;
         }
 
         .evidence-card {
             margin: 0.8rem 0;
             padding: 0.95rem 1.15rem;
-            border: 1px solid var(--line);
-            border-radius: 6px;
-            background: #faf7ed;
+            border: 1px solid #C8D7C2;
+            border-radius: 8px;
+            background: #FAFDF6;
         }
 
         .evidence-title {
-            font-family: Georgia, "Times New Roman", serif;
-            font-size: 0.98rem;
-            font-weight: 600;
-            color: var(--ink);
-            margin-bottom: 0.25rem;
-        }
-
-        .evidence-meta {
-            font-family: "IBM Plex Sans", Arial, sans-serif;
-            font-size: 0.74rem;
-            color: var(--ink-soft);
-            margin-bottom: 0.65rem;
-        }
-
-        .evidence-content {
-            font-family: "IBM Plex Sans", Arial, sans-serif;
-            font-size: 0.84rem;
-            line-height: 1.65;
-            color: #394b46;
-        }
-
-        /* ---------------------------------------------------------------
-           Abstention
-        --------------------------------------------------------------- */
-
-        .facilitator-box {
-            margin: 1.2rem 0 1.5rem 0;
-            padding: 1.1rem 1.3rem;
-            border-left: 3px solid var(--turmeric);
-            background: #faf7ed;
-            border-top: 1px solid rgba(201,151,56,0.18);
-            border-right: 1px solid rgba(201,151,56,0.18);
-            border-bottom: 1px solid rgba(201,151,56,0.18);
-            border-radius: 0 6px 6px 0;
-        }
-
-        .facilitator-title {
-            font-family: Georgia, "Times New Roman", serif;
+            font-family: 'Cormorant Garamond', Georgia, serif;
             font-size: 1.05rem;
             font-weight: 600;
-            color: var(--ink);
-            margin-bottom: 0.35rem;
+            color: #003E29;
+            margin-bottom: 0.25rem;
         }
-
-        .facilitator-copy {
-            font-family: "IBM Plex Sans", Arial, sans-serif;
-            font-size: 0.84rem;
-            line-height: 1.65;
-            color: var(--ink-soft);
-        }
-
-        /* ---------------------------------------------------------------
-           Metrics & Expanders
-        --------------------------------------------------------------- */
-
-        div[data-testid="stExpander"] {
-            border: 1px solid var(--line) !important;
-            border-radius: 6px !important;
-            background: #faf7ed !important;
-            margin-top: 1rem !important;
-            margin-bottom: 1rem !important;
-            box-shadow: none !important;
-        }
-
-        div[data-testid="stExpander"] summary {
-            font-family: "IBM Plex Sans", Arial, sans-serif !important;
-            font-size: 0.84rem !important;
-            font-weight: 600 !important;
-            color: var(--ink) !important;
-        }
-
-        div[data-testid="stMetric"] {
-            background: transparent !important;
-            padding: 0.2rem 0 !important;
-        }
-
-        div[data-testid="stMetricLabel"] {
-            font-family: "IBM Plex Sans", Arial, sans-serif !important;
-            font-size: 0.74rem !important;
-            color: var(--ink-soft) !important;
-            font-weight: 500 !important;
-        }
-
-        div[data-testid="stMetricValue"] {
-            font-family: Georgia, "Times New Roman", serif !important;
-            font-size: 1.3rem !important;
-            color: var(--ink) !important;
-            font-weight: 600 !important;
-        }
-
-        /* ---------------------------------------------------------------
-           Chat input & Bottom area styling
-        --------------------------------------------------------------- */
-
-        [data-testid="stBottom"],
-        [data-testid="stBottom"] > div,
-        div[data-testid="stBottom"],
-        div[data-testid="stChatInput"] {
-            background-color: var(--parchment) !important;
-            background: var(--parchment) !important;
-            border-top: none !important;
-        }
-
-        div[data-testid="stChatInput"] {
-            padding: 0.5rem 0 1rem 0 !important;
-        }
-
-        div[data-testid="stChatInput"] > div {
-            background-color: var(--white) !important;
-            border: 1px solid var(--line) !important;
-            border-radius: 8px !important;
-            box-shadow: 0 1px 4px rgba(0,0,0,0.03) !important;
-        }
-
-        div[data-testid="stChatInput"] textarea {
-            background: transparent !important;
-            color: var(--ink) !important;
-            border: none !important;
-            font-family: "IBM Plex Sans", Arial, sans-serif !important;
-            font-size: 0.9rem !important;
-        }
-
-        div[data-testid="stChatInput"] textarea::placeholder {
-            color: #7c817a !important;
-        }
-
-        div[data-testid="stChatInput"] button {
-            background: var(--ink) !important;
-            color: var(--white) !important;
-            border-radius: 6px !important;
-            border: none !important;
-        }
-
-
-        /* Disclaimer styling */
-        .disclaimer-text,
-        [data-testid="stCaptionContainer"],
-        .stCaption,
-        div[data-testid="stCaptionContainer"] p {
-            color: #53645f !important;
-            font-family: "IBM Plex Sans", Arial, sans-serif !important;
-            font-size: 0.76rem !important;
-            font-weight: 400 !important;
-            line-height: 1.6 !important;
-            margin-top: 1.2rem !important;
-            margin-bottom: 0.8rem !important;
-        }
-
-        /* Responsive layout */
-        @media (max-width: 900px) {
-            .research-grid {
-                grid-template-columns: 1fr;
-                gap: 1.25rem;
-            }
-
-            .hero-title {
-                font-size: 2.5rem;
-            }
-        }
-
         </style>
         """
     )
@@ -940,73 +709,94 @@ def render_sidebar(
     chat_storage: ChatStorageService,
     user_id: Optional[str] = None,
 ) -> Dict[str, Any]:
-    """Render the application controls and user-scoped sidebar chat history."""
+    """Render the dark forest green sidebar matching the reference screenshot EXACTLY."""
 
-    if LOGO_PATH.exists():
-        st.sidebar.image(
-            str(LOGO_PATH),
-            width=85,
-        )
+    # Top Branding & Logo
+    logo_b64 = get_logo_base64()
+    if logo_b64:
         md_html(
-            '<div class="sidebar-brand-subtitle">'
-            'Traditional Knowledge · IP · AYUSH'
-            '</div>',
+            f"""\
+            <div style="text-align: center; margin-bottom: 0.8rem;">
+              <img src="data:image/png;base64,{logo_b64}" alt="IP-SAKTI Sahayak" style="width: 82px; height: auto; display: block; margin: 0 auto 0.4rem auto;" />
+              <div style="font-family: 'Cormorant Garamond', Georgia, serif; font-size: 1.3rem; font-weight: 700; color: #FFFFFF; letter-spacing: 0.02em;">
+                IP-SAKTI
+              </div>
+              <div style="font-family: 'IBM Plex Sans', sans-serif; font-size: 0.82rem; color: #A1C9B6; margin-top: -0.15rem;">
+                Sahayak
+              </div>
+              <div style="font-family: 'IBM Plex Sans', sans-serif; font-size: 0.72rem; color: #7B9F8E; margin-top: 0.35rem; letter-spacing: 0.03em;">
+                Traditional Knowledge · IP · AYUSH
+              </div>
+            </div>
+            """,
             sidebar=True,
         )
     else:
         md_html(
-            """
-            <div class="sidebar-brand">
-                <div class="sidebar-brand-name">
-                    IP-SAKTI Sahayak
-                </div>
-                <div class="sidebar-brand-subtitle">
-                    Traditional Knowledge · IP · AYUSH
-                </div>
+            """\
+            <div style="text-align: center; margin-bottom: 0.8rem;">
+              <div style="font-family: 'Cormorant Garamond', Georgia, serif; font-size: 1.35rem; font-weight: 700; color: #FFFFFF;">
+                IP-SAKTI
+              </div>
+              <div style="font-family: 'IBM Plex Sans', sans-serif; font-size: 0.85rem; color: #A1C9B6;">
+                Sahayak
+              </div>
+              <div style="font-family: 'IBM Plex Sans', sans-serif; font-size: 0.72rem; color: #7B9F8E; margin-top: 0.3rem;">
+                Traditional Knowledge · IP · AYUSH
+              </div>
             </div>
             """,
             sidebar=True,
         )
 
-    # ---------------------------------------------------------------
-    # New Chat Button & Recent Chats
-    # ---------------------------------------------------------------
-    if st.sidebar.button("➕ New Chat", key="btn_new_chat", use_container_width=True):
+    # 1. New Chat Button
+    if st.sidebar.button("+  New Chat", key="btn_new_chat", use_container_width=True):
         new_conv = chat_storage.create_conversation("New Chat", user_id=user_id)
         st.session_state.active_conversation_id = new_conv["id"]
         st.session_state.messages = []
         st.rerun()
 
+    # 2. History Section Header
     md_html(
-        '<div class="sidebar-section-title" style="margin-top: 1.1rem; margin-bottom: 0.5rem;">Recent Chats</div>',
+        '<div style="font-family: \'IBM Plex Sans\', sans-serif; font-size: 0.72rem; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: #7B9F8E; margin-top: 1rem; margin-bottom: 0.4rem;">HISTORY</div>',
         sidebar=True,
     )
 
-    conv_list = chat_storage.list_conversations(user_id=user_id, limit=30)
+    # 3. Search History Input Box
+    search_query = st.sidebar.text_input(
+        "Search history",
+        key="sb_chat_search",
+        placeholder="🔍 Search history...",
+        label_visibility="collapsed",
+    )
+
+    conv_list = chat_storage.list_conversations(user_id=user_id, limit=40)
     active_cid = st.session_state.get("active_conversation_id")
+
+    if search_query and search_query.strip():
+        sq = search_query.strip().lower()
+        conv_list = [c for c in conv_list if sq in c.get("title", "").lower()]
 
     if conv_list:
         show_all = st.session_state.get("show_more_chats", False)
-        display_convs = conv_list if show_all else conv_list[:7]
+        display_convs = conv_list if show_all else conv_list[:8]
 
         for conv in display_convs:
             cid = conv["id"]
             title = conv["title"]
-            date_label = format_chat_date(conv.get("updated_at") or conv.get("created_at") or "")
-            icon = get_chat_icon(title)
             is_active = (cid == active_cid)
 
             c_col, d_col = st.sidebar.columns([0.84, 0.16])
 
-            active_prefix = "▶ " if is_active else ""
-            btn_text = f"{active_prefix}{icon} {title}"
+            active_symbol = "💬 "
+            btn_text = f"{active_symbol}{title}"
 
             with c_col:
                 if st.button(
                     btn_text,
                     key=f"chat_sel_{cid}",
                     use_container_width=True,
-                    help=f"{title} ({date_label})",
+                    help=title,
                 ):
                     st.session_state.active_conversation_id = cid
                     c_data = chat_storage.get_conversation(cid, user_id=user_id)
@@ -1031,7 +821,7 @@ def render_sidebar(
                     st.rerun()
 
             with d_col:
-                if st.button("🗑️", key=f"chat_del_{cid}", help="Delete chat"):
+                if st.button("🗑️", key=f"chat_del_{cid}", help="Delete conversation"):
                     chat_storage.delete_conversation(cid, user_id=user_id)
                     if cid == st.session_state.get("active_conversation_id"):
                         rem = chat_storage.list_conversations(user_id=user_id, limit=1)
@@ -1045,96 +835,28 @@ def render_sidebar(
                             st.session_state.messages = []
                     st.rerun()
 
-        if len(conv_list) > 7 and not show_all:
+        if len(conv_list) > 8 and not show_all:
             if st.sidebar.button("Show more chats...", key="btn_show_more", use_container_width=True):
                 st.session_state.show_more_chats = True
                 st.rerun()
 
-    st.sidebar.markdown("---")
+    md_html("<div style='height: 1.5rem;'></div>", sidebar=True)
 
-
-
-    md_html(
-        '<div class="sidebar-section-title">Jurisdiction & Scope</div>',
-        sidebar=True,
-    )
-
-    jurisdiction_options = {
-        "Auto-detect": "unknown",
-        "India": "india",
-        "International": "international",
-        "Both (India & Int'l)": "both",
-    }
-
-    selected_j_label = st.sidebar.selectbox(
-        "Target Jurisdiction",
-        options=list(jurisdiction_options.keys()),
-        index=0,
-    )
-
-    jurisdiction = jurisdiction_options[selected_j_label]
-
-    formulation_options = {
-        "Auto-detect": "unknown",
-        "Classical Ayurvedic": "classical",
-        "Proprietary Medicine": "proprietary",
-        "New Drug": "new_drug",
-        "Phytopharmaceutical": "phytopharmaceutical",
-        "Nutraceutical": "nutraceutical",
-        "Cosmetic": "cosmetic",
-    }
-
-    selected_f_label = st.sidebar.selectbox(
-        "Formulation Category",
-        options=list(formulation_options.keys()),
-        index=0,
-    )
-
-    formulation = formulation_options[selected_f_label]
-
-    st.sidebar.markdown("---")
-
-    md_html(
-        '<div class="sidebar-section-title">Language</div>',
-        sidebar=True,
-    )
-
-    language_options = {
-        "Auto-detect": "auto",
-        "English (en)": "en",
-        "Hindi (hi)": "hi",
-        "Tamil (ta)": "ta",
-        "Telugu (te)": "te",
-        "Kannada (kn)": "kn",
-        "Marathi (mr)": "mr",
-        "Bengali (bn)": "bn",
-        "Gujarati (gu)": "gu",
-        "Malayalam (ml)": "ml",
-        "Punjabi (pa)": "pa",
-        "Odia (or)": "or",
-    }
-
-    selected_lang_label = st.sidebar.selectbox(
-        "Query / Response Language",
-        options=list(language_options.keys()),
-        index=0,
-    )
-
-    user_lang = language_options[selected_lang_label]
-
-    st.sidebar.markdown("---")
-
+    # 4. Settings & Logout Buttons at bottom
     if st.sidebar.button("⚙️ Settings", key="sb_btn_settings", use_container_width=True):
         st.session_state.show_settings = True
         st.rerun()
 
     if st.sidebar.button("🚪 Logout", key="sb_btn_logout", use_container_width=True):
+<<<<<<< HEAD
         # Revoke persistent session + delete cookie + clear query params
         try:
             if "session" in st.query_params:
                 del st.query_params["session"]
         except Exception:
             pass
+=======
+>>>>>>> 874b31c (feat(ui): recreate frontend UI to match reference screenshot exactly)
         cookie_manager = _get_cookie_manager()
         if cookie_manager is not None:
             signed_token = cookie_manager.get(COOKIE_NAME)
@@ -1163,11 +885,10 @@ def render_sidebar(
         sidebar=True,
     )
 
-
     return {
-        "jurisdiction": jurisdiction,
-        "formulation": formulation,
-        "user_lang": user_lang,
+        "jurisdiction": "unknown",
+        "formulation": "unknown",
+        "user_lang": "auto",
         "api_url": DEFAULT_API_BASE_URL,
     }
 
@@ -1908,65 +1629,141 @@ Already have an account?
 # ---------------------------------------------------------------------------
 
 def render_landing_page() -> None:
-    """Render the initial research interface."""
+    """Render initial research interface matching reference screenshot EXACTLY."""
 
-    md_html('<div class="eyebrow">Sahayak, sahaayak — "the one who assists"</div>')
+    # 1. Botanical Background Layers
+    botanical_html = """\
+<div class="botanical-bg-container">
+  <!-- Top Left Botanical Branch -->
+  <svg class="botanical-leaf bot-top-left" width="360" height="360" viewBox="0 0 360 360" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path d="M-30 -30 Q 70 80, 200 210 T 340 340" stroke="#1D4A32" stroke-width="3.5" stroke-linecap="round"/>
+    <path d="M30 25 C 0 -15, 75 -25, 115 15 C 85 45, 40 50, 30 25 Z" fill="#2E6446" opacity="0.88"/>
+    <path d="M30 25 Q 75 0 115 15" stroke="#123A24" stroke-width="1.2"/>
+    <path d="M70 65 C 30 20, 120 5, 160 55 C 120 90, 75 90, 70 65 Z" fill="#3B7754" opacity="0.92"/>
+    <path d="M70 65 Q 115 35 160 55" stroke="#123A24" stroke-width="1.2"/>
+    <path d="M115 115 C 60 65, 170 45, 210 100 C 160 140, 120 145, 115 115 Z" fill="#245439" opacity="0.85"/>
+    <path d="M115 115 Q 165 80 210 100" stroke="#123A24" stroke-width="1.2"/>
+    <path d="M165 170 C 115 120, 230 95, 275 155 C 220 195, 175 195, 165 170 Z" fill="#34704E" opacity="0.9"/>
+    <path d="M165 170 Q 220 135 275 155" stroke="#123A24" stroke-width="1.2"/>
+    <path d="M15 55 C -25 75, -10 145, 40 130 C 50 95, 35 65, 15 55 Z" fill="#44845E" opacity="0.88"/>
+    <path d="M55 105 C 15 125, 25 195, 75 180 C 85 145, 70 115, 55 105 Z" fill="#2D6345" opacity="0.91"/>
+  </svg>
 
-    md_html('<div class="hero-title">Ask before you file.</div>')
+  <!-- Top Right Botanical Branch -->
+  <svg class="botanical-leaf bot-top-right" width="400" height="400" viewBox="0 0 400 400" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path d="M430 -30 Q 310 90, 180 210 T 20 380" stroke="#1B462E" stroke-width="4" stroke-linecap="round"/>
+    <path d="M340 30 C 380 -15, 295 -25, 255 15 C 285 50, 330 55, 340 30 Z" fill="#2E6446" opacity="0.9"/>
+    <path d="M340 30 Q 295 0 255 15" stroke="#123A24" stroke-width="1.2"/>
+    <path d="M295 75 C 335 30, 245 15, 205 60 C 235 95, 285 95, 295 75 Z" fill="#3A7553" opacity="0.88"/>
+    <path d="M295 75 Q 250 40 205 60" stroke="#123A24" stroke-width="1.2"/>
+    <path d="M245 130 C 290 80, 190 60, 145 110 C 185 150, 235 150, 245 130 Z" fill="#225338" opacity="0.92"/>
+    <path d="M245 130 Q 195 95 145 110" stroke="#123A24" stroke-width="1.2"/>
+    <path d="M195 190 C 240 140, 135 115, 90 170 C 135 210, 185 210, 195 190 Z" fill="#35714F" opacity="0.87"/>
+    <path d="M195 190 Q 140 150 90 170" stroke="#123A24" stroke-width="1.2"/>
+    <path d="M360 65 C 400 85, 385 155, 335 140 C 320 105, 340 75, 360 65 Z" fill="#295D40" opacity="0.89"/>
+  </svg>
 
+  <!-- Bottom Left Botanical Branch -->
+  <svg class="botanical-leaf bot-bottom-left" width="380" height="380" viewBox="0 0 380 380" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path d="M-30 410 Q 90 290, 200 170 T 360 10" stroke="#1B462E" stroke-width="3.5" stroke-linecap="round"/>
+    <path d="M35 335 C -5 375, 70 395, 105 350 C 80 320, 40 315, 35 335 Z" fill="#2A5F42" opacity="0.9"/>
+    <path d="M80 290 C 40 330, 125 350, 160 300 C 130 270, 85 270, 80 290 Z" fill="#3B7754" opacity="0.88"/>
+    <path d="M130 235 C 85 280, 180 300, 215 250 C 180 215, 135 215, 130 235 Z" fill="#215136" opacity="0.92"/>
+  </svg>
+
+  <!-- Bottom Right Botanical Branch -->
+  <svg class="botanical-leaf bot-bottom-right" width="440" height="440" viewBox="0 0 440 440" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path d="M470 470 Q 320 340, 190 200 T 20 20" stroke="#1A452D" stroke-width="4" stroke-linecap="round"/>
+    <path d="M380 380 C 420 340, 340 320, 305 365 C 330 395, 370 400, 380 380 Z" fill="#2E6446" opacity="0.91"/>
+    <path d="M330 325 C 370 285, 285 265, 250 310 C 280 340, 320 345, 330 325 Z" fill="#3B7754" opacity="0.87"/>
+    <path d="M275 265 C 320 220, 225 205, 190 255 C 225 290, 265 290, 275 265 Z" fill="#225338" opacity="0.92"/>
+  </svg>
+
+  <!-- Floating Leaf -->
+  <svg class="botanical-leaf bot-float-1" width="140" height="140" viewBox="0 0 140 140" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path d="M20 30 C 45 10, 80 25, 65 65 C 45 80, 10 55, 20 30 Z" fill="#2E6446" opacity="0.6"/>
+    <path d="M20 30 Q 48 45 65 65" stroke="#1B462E" stroke-width="1" fill="none" opacity="0.65"/>
+  </svg>
+</div>
+"""
+    md_html(botanical_html)
+
+    # 2. Hero Section
+    md_html('<div class="hero-tagline">Sahayak, sahayak — "the one who assists"</div>')
+    md_html('<div class="hero-heading">Ask before you file.</div>')
     md_html(
-        '<div class="hero-description">Decision-support research for Traditional Knowledge, patent prior art, AYUSH regulatory compliance, and Access & Benefit Sharing — grounded in available source texts.</div>'
+        '<div class="hero-subtext">'
+        'Decision-support research for Traditional Knowledge, patent prior art, AYUSH regulatory compliance, and '
+        'Access & Benefit Sharing — grounded in available source texts.'
+        '</div>'
     )
 
+    # 3. Three Feature Cards (Horizontal Row)
     col1, col2, col3 = st.columns(3)
+
     with col1:
         md_html(
-            '<div class="research-item">'
-            '<div class="research-title">Prior Art Inquiry</div>'
-            '<div class="research-copy">Explore patent prior art, exclusions and Traditional Knowledge references.</div>'
-            '</div>'
+            """\
+            <div class="feature-card">
+              <div style="display: flex; align-items: center; gap: 0.65rem; margin-bottom: 0.5rem;">
+                <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#003E29" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                  <circle cx="11.5" cy="14.5" r="2.5"></circle>
+                  <path d="M13.5 16.5L16 19"></path>
+                </svg>
+                <div class="feature-card-title" style="margin: 0;">Prior Art Inquiry</div>
+              </div>
+              <div class="feature-card-copy">
+                Explore patent prior art, exclusions and Traditional Knowledge references.
+              </div>
+            </div>
+            """
         )
+        if st.button("Prior Art Inquiry →", key="btn_card_prior_art", use_container_width=True):
+            st.session_state.pending_query = "Is turmeric + neem patentable in India?"
+            st.rerun()
+
     with col2:
         md_html(
-            '<div class="research-item">'
-            '<div class="research-title">AYUSH Compliance</div>'
-            '<div class="research-copy">Examine regulatory requirements and formulation-specific considerations.</div>'
-            '</div>'
+            """\
+            <div class="feature-card">
+              <div style="display: flex; align-items: center; gap: 0.65rem; margin-bottom: 0.5rem;">
+                <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#003E29" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2zm0 18a8 8 0 1 1 8-8 8 8 0 0 1-8 8z"></path>
+                  <path d="M12 6v6l4 2"></path>
+                </svg>
+                <div class="feature-card-title" style="margin: 0;">AYUSH Compliance</div>
+              </div>
+              <div class="feature-card-copy">
+                Examine regulatory requirements and formulation-specific considerations.
+              </div>
+            </div>
+            """
         )
+        if st.button("AYUSH Compliance →", key="btn_card_ayush", use_container_width=True):
+            st.session_state.pending_query = "AYUSH licensing steps under Rule 158-B"
+            st.rerun()
+
     with col3:
         md_html(
-            '<div class="research-item">'
-            '<div class="research-title">ABS & Consent</div>'
-            '<div class="research-copy">Examine Access & Benefit-Sharing obligations and relevant biological-resource provisions.</div>'
-            '</div>'
+            """\
+            <div class="feature-card">
+              <div style="display: flex; align-items: center; gap: 0.65rem; margin-bottom: 0.5rem;">
+                <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#003E29" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10Z"></path>
+                  <path d="M2 21c0-3 1.85-5.36 5.08-6C9.5 14.52 12 13 13 12"></path>
+                </svg>
+                <div class="feature-card-title" style="margin: 0;">ABS & Consent</div>
+              </div>
+              <div class="feature-card-copy">
+                Examine Access & Benefit-Sharing obligations and relevant biological-resource provisions.
+              </div>
+            </div>
+            """
         )
-
-    md_html('<div class="suggested-label">Suggested research queries</div>')
-
-    queries = [
-        "Is turmeric + neem patentable in India?  →",
-        "AYUSH licensing steps under Rule 158-B  →",
-        "ABS obligations under Biodiversity Act  →",
-    ]
-
-    cols = st.columns(3)
-
-    for index, query in enumerate(queries):
-
-        with cols[index]:
-
-            md_html('<div class="suggested-query">')
-
-            if st.button(
-                query,
-                key=f"suggested_query_{index}",
-                use_container_width=True,
-            ):
-                st.session_state.pending_query = query.replace("  →", "").strip()
-
-            md_html("</div>")
-
-    md_html("<hr style='border:none;border-top:1px solid #d8d0bd;margin-top:2rem;'>")
+        if st.button("ABS & Consent →", key="btn_card_abs", use_container_width=True):
+            st.session_state.pending_query = "ABS obligations under Biodiversity Act"
+            st.rerun()
 
 
 # ---------------------------------------------------------------------------
