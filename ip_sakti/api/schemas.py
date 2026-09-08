@@ -40,6 +40,15 @@ class APIQueryRequest(BaseModel):
         default=None,
         description="ISO 639-1 language code if explicitly specified by user.",
     )
+    conversation_id: Optional[str] = Field(
+        default=None,
+        description="ID of active conversation session.",
+    )
+    conversation_history: list[dict[str, str]] = Field(
+        default_factory=list,
+        description="Recent conversation history turns for session context.",
+    )
+
 
 
 class APIQueryResponse(BaseModel):

@@ -114,7 +114,20 @@ class GeminiLLMAdapter:
             )
         formatted_evidence = "\n\n".join(evidence_passages)
 
+        # Format bounded conversation context window (most recent 4 messages max)
+        history_context = ""
+        if context.conversation_history:
+            bounded_history = context.conversation_history[-4:]
+            hist_lines = [
+                f"{msg.role.capitalize()}: {msg.content.strip()}"
+                for msg in bounded_history
+                if msg.content and msg.content.strip()
+            ]
+            if hist_lines:
+                history_context = "Prior Conversation Context:\n" + "\n".join(hist_lines) + "\n\n"
+
         user_prompt = (
+            f"{history_context}"
             f"User Query: {context.translated_query}\n\n"
             f"Retrieved Evidence:\n{formatted_evidence}\n\n"
             f"Instructions: Provide a complete, structured, and informative answer (approximately 1–3 paragraphs or bullet points) grounded strictly in the evidence above. "
@@ -123,6 +136,7 @@ class GeminiLLMAdapter:
             f"IMPORTANT: Write your complete response in full. Do NOT stop mid-sentence, mid-list, or mid-paragraph. "
             f"Every sentence, bullet point, and numbered step must be finished completely before ending your response."
         )
+
 
 
         if self._configured and _GENAI_AVAILABLE:

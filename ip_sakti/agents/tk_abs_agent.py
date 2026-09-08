@@ -52,12 +52,22 @@ class TKABSAgent(BaseAgent):
             extra={"query_id": str(context.query_id)},
         )
 
-        search_query = context.translated_query
+        context_prefix = ""
+        if context.conversation_history:
+            user_prevs = [
+                msg.content for msg in context.conversation_history
+                if msg.role == "user" and msg.content.strip()
+            ]
+            if user_prevs:
+                context_prefix = user_prevs[-1].strip() + " "
+
+        search_query = f"{context_prefix}{context.translated_query}".strip()
         tk_keywords = ["traditional knowledge", "tk", "tkdl", "biodiversity", "abs", "nba", "sbb", "biological resource"]
         if search_query and not any(kw in search_query.lower() for kw in tk_keywords):
             search_query = f"{search_query} Traditional Knowledge Biological Diversity Act Access and Benefit Sharing NBA"
 
         evidence_chunks = pipeline.search(search_query, original_query=context.translated_query)
+
 
 
 

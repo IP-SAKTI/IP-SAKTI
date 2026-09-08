@@ -94,12 +94,22 @@ async def process_query(payload: APIQueryRequest) -> APIQueryResponse:
             f"Unrecognised formulation category '{payload.formulation_category}', defaulting to UNKNOWN."
         )
 
+    from ip_sakti.models.query import ConversationMessageModel
+    history_models = [
+        ConversationMessageModel(role=m.get("role", "user"), content=m.get("content", ""))
+        for m in payload.conversation_history
+        if isinstance(m, dict) and "content" in m
+    ]
+
     query_req = QueryRequest(
         raw_query=payload.raw_query,
         jurisdiction=j_enum,
         formulation_category=f_enum,
         user_language=payload.user_language,
+        conversation_id=payload.conversation_id,
+        conversation_history=history_models,
     )
+
 
     try:
         srv = get_service()

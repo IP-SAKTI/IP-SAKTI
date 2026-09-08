@@ -61,6 +61,38 @@ class AgentType(str, Enum):
 
 
 # =============================================================================
+# Session & Conversation Memory
+# =============================================================================
+
+
+class ConversationMessageModel(BaseModel):
+    """A single turn in the conversation history."""
+
+    role: str = Field(..., description="Role of speaker: 'user' or 'assistant'.")
+    content: str = Field(..., description="Text content of the message.")
+
+
+class SessionContext(BaseModel):
+    """Structured session context inferred from conversation history."""
+
+    invention_description: Optional[str] = Field(
+        default=None, description="Summary description of the invention or product."
+    )
+    jurisdiction: Optional[str] = Field(
+        default=None, description="Inferred or specified target jurisdiction."
+    )
+    user_objective: Optional[str] = Field(
+        default=None, description="Primary user objective (patent, manufacturing, ABS, etc.)."
+    )
+    topics: list[str] = Field(
+        default_factory=list, description="List of previously discussed topics."
+    )
+    entities: list[str] = Field(
+        default_factory=list, description="Key entities mentioned (e.g. Ashwagandha, Tulsi)."
+    )
+
+
+# =============================================================================
 # Request
 # =============================================================================
 
@@ -96,6 +128,18 @@ class QueryRequest(BaseModel):
     created_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),
         description="UTC timestamp when the query was submitted.",
+    )
+    conversation_id: Optional[str] = Field(
+        default=None,
+        description="ID of active conversation, if continuing a session.",
+    )
+    conversation_history: list[ConversationMessageModel] = Field(
+        default_factory=list,
+        description="Recent conversation context for session memory.",
+    )
+    session_context: Optional[SessionContext] = Field(
+        default=None,
+        description="Structured session context inferred from conversation.",
     )
 
 
@@ -155,6 +199,15 @@ class QueryContext(BaseModel):
         default_factory=list,
         description="Ordered list of specialist agents selected by the Agent Router.",
     )
+    conversation_history: list[ConversationMessageModel] = Field(
+        default_factory=list,
+        description="Recent conversation context for session memory.",
+    )
+    session_context: Optional[SessionContext] = Field(
+        default=None,
+        description="Structured session context inferred from conversation.",
+    )
+
 
 
 # =============================================================================

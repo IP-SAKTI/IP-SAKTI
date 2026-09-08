@@ -68,7 +68,10 @@ class Orchestrator:
             intent=intent,
             jurisdiction=jurisdiction,
             formulation_category=formulation,
+            conversation_history=request.conversation_history,
+            session_context=request.session_context,
         )
+
 
         logger.info(
             "Orchestrator context created",
