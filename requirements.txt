@@ -9,6 +9,8 @@ uvicorn[standard]==0.30.6
 
 # ── Frontend ─────────────────────────────────────────────────────────────────
 streamlit==1.38.0
+# Cookie-based persistent session management for browser-refresh auth
+extra-streamlit-components==0.1.71
 
 # ── Data validation ───────────────────────────────────────────────────────────
 pydantic==2.9.0

@@ -83,10 +83,57 @@ CREATE TABLE IF NOT EXISTS documents (
 );
 """
 
+_CREATE_USERS_TABLE = """
+CREATE TABLE IF NOT EXISTS users (
+    id              TEXT        PRIMARY KEY,
+    name            TEXT        NOT NULL,
+    email           TEXT        NOT NULL UNIQUE,
+    password_hash   TEXT        NOT NULL,
+    created_at      TEXT        NOT NULL
+);
+"""
+
+_CREATE_CONVERSATIONS_TABLE = """
+CREATE TABLE IF NOT EXISTS conversations (
+    id          TEXT        PRIMARY KEY,
+    user_id     TEXT,
+    title       TEXT        NOT NULL,
+    created_at  TEXT        NOT NULL,
+    updated_at  TEXT        NOT NULL,
+    FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+);
+"""
+
+_CREATE_MESSAGES_TABLE = """
+CREATE TABLE IF NOT EXISTS messages (
+    id              TEXT        PRIMARY KEY,
+    conversation_id TEXT        NOT NULL,
+    role            TEXT        NOT NULL,
+    content         TEXT        NOT NULL,
+    timestamp       TEXT        NOT NULL,
+    metadata_json   TEXT,
+    FOREIGN KEY (conversation_id) REFERENCES conversations (id) ON DELETE CASCADE
+);
+"""
+
+_CREATE_USER_SESSIONS_TABLE = """
+CREATE TABLE IF NOT EXISTS user_sessions (
+    token           TEXT        PRIMARY KEY,
+    user_id         TEXT        NOT NULL,
+    created_at      TEXT        NOT NULL,
+    expires_at      TEXT        NOT NULL,
+    FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+);
+"""
+
 _ALL_DDL = [
     _CREATE_QUERIES_TABLE,
     _CREATE_ESCALATIONS_TABLE,
     _CREATE_DOCUMENTS_TABLE,
+    _CREATE_USERS_TABLE,
+    _CREATE_CONVERSATIONS_TABLE,
+    _CREATE_MESSAGES_TABLE,
+    _CREATE_USER_SESSIONS_TABLE,
 ]
 
 
@@ -192,5 +239,15 @@ class DatabaseManager:
         with conn:
             for ddl in _ALL_DDL:
                 conn.execute(ddl)
+            # Migration check: ensure user_id column exists on conversations table
+            try:
+                cursor = conn.execute("PRAGMA table_info(conversations)")
+                cols = [row[1] for row in cursor.fetchall()]
+                if "user_id" not in cols:
+                    conn.execute("ALTER TABLE conversations ADD COLUMN user_id TEXT;")
+            except Exception as exc:
+                logger.debug(f"Migration check for user_id column on conversations: {exc}")
+
         self._schema_created = True
         logger.debug("Schema applied", extra={"db_path": str(self._db_path)})
+
