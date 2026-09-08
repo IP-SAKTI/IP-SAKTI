@@ -225,9 +225,11 @@ def inject_styles() -> None:
         }
 
         /* Main application */
-        .stApp {
+        .stApp,
+        div[data-testid="stAppViewContainer"] {
             background: var(--parchment);
             color: var(--ink);
+            overflow-y: auto !important;
         }
 
         .main .block-container {
@@ -1456,7 +1458,7 @@ def render_left_panel() -> None:
     )
 
     panel_html = f"""\
-<div style="background-color: #081c38; height: 100vh; height: 100dvh; padding: 2rem 1.25rem; display: flex; flex-direction: column; justify-content: center; align-items: center; position: relative; box-sizing: border-box; color: #ffffff; overflow: hidden;">
+<div style="background-color: #081c38; min-height: 100vh; min-height: 100dvh; height: 100%; padding: 2rem 1.25rem; display: flex; flex-direction: column; justify-content: center; align-items: center; position: relative; box-sizing: border-box; color: #ffffff; overflow-y: auto;">
 <div style="text-align: center; position: relative; z-index: 2; margin-bottom: 2rem;">
 {logo_html}
 <div style="font-family: sans-serif; font-size: 0.76rem; color: rgba(255,255,255,0.7); margin-bottom: 1rem; letter-spacing: 0.02em;">
@@ -1516,12 +1518,12 @@ div[data-testid="stMain"],
 div[data-testid="stMainBlockContainer"],
 .main {
     background-color: #F5EFDC !important;
-    width: 100vw !important;
-    height: 100vh !important;
-    height: 100dvh !important;
+    width: 100% !important;
+    min-height: 100vh !important;
+    min-height: 100dvh !important;
     margin: 0 !important;
     padding: 0 !important;
-    overflow: hidden !important;
+    overflow-y: auto !important;
     top: 0 !important;
 }
 
@@ -1533,17 +1535,19 @@ div[data-testid="stMainBlockContainer"] {
     padding-left: 0 !important;
     padding-right: 0 !important;
     max-width: 100% !important;
-    width: 100vw !important;
-    height: 100vh !important;
-    height: 100dvh !important;
+    width: 100% !important;
+    min-height: 100vh !important;
+    min-height: 100dvh !important;
+    height: auto !important;
     margin: 0 !important;
 }
 
 /* Top-level columns container */
 .main .block-container > div[data-testid="stVerticalBlock"] > div[data-testid="stHorizontalBlock"] {
-    width: 100vw !important;
-    height: 100vh !important;
-    height: 100dvh !important;
+    width: 100% !important;
+    min-height: 100vh !important;
+    min-height: 100dvh !important;
+    height: auto !important;
     gap: 0 !important;
     margin: 0 !important;
     padding: 0 !important;
@@ -1556,8 +1560,9 @@ div[data-testid="stMainBlockContainer"] {
     min-width: 29% !important;
     padding: 0 !important;
     margin: 0 !important;
-    height: 100vh !important;
-    height: 100dvh !important;
+    min-height: 100vh !important;
+    min-height: 100dvh !important;
+    height: 100% !important;
     background-color: #081c38 !important;
 }
 
@@ -1567,15 +1572,16 @@ div[data-testid="stMainBlockContainer"] {
     max-width: 71% !important;
     min-width: 71% !important;
     background-color: #F5EFDC !important;
-    padding: 1.5rem 2rem !important;
-    height: 100vh !important;
-    height: 100dvh !important;
+    padding: 2rem 2rem 3rem 2rem !important;
+    min-height: 100vh !important;
+    min-height: 100dvh !important;
+    height: auto !important;
     display: flex !important;
     flex-direction: column !important;
     justify-content: center !important;
     align-items: center !important;
     box-sizing: border-box !important;
-    overflow: hidden !important;
+    overflow-y: auto !important;
 }
 
 /* Style .stTextInput input */
