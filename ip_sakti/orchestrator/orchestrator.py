@@ -70,6 +70,8 @@ class Orchestrator:
             formulation_category=formulation,
             conversation_history=request.conversation_history,
             session_context=request.session_context,
+            search_mode=request.search_mode,
+            user_id=request.user_id,
         )
 
 

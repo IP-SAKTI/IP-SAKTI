@@ -94,7 +94,13 @@ async def process_query(payload: APIQueryRequest) -> APIQueryResponse:
             f"Unrecognised formulation category '{payload.formulation_category}', defaulting to UNKNOWN."
         )
 
-    from ip_sakti.models.query import ConversationMessageModel
+    from ip_sakti.models.query import ConversationMessageModel, SearchMode
+    sm_enum = SearchMode.HYBRID
+    try:
+        sm_enum = SearchMode(payload.search_mode.lower())
+    except (ValueError, AttributeError):
+        logger.debug(f"Unrecognised search_mode '{payload.search_mode}', defaulting to HYBRID.")
+
     history_models = [
         ConversationMessageModel(role=m.get("role", "user"), content=m.get("content", ""))
         for m in payload.conversation_history
@@ -108,6 +114,8 @@ async def process_query(payload: APIQueryRequest) -> APIQueryResponse:
         user_language=payload.user_language,
         conversation_id=payload.conversation_id,
         conversation_history=history_models,
+        search_mode=sm_enum,
+        user_id=payload.user_id,
     )
 
 
@@ -131,6 +139,8 @@ async def process_query(payload: APIQueryRequest) -> APIQueryResponse:
             citations=final_resp.citations,
             agents_invoked=agents_str,
             disclaimer=final_resp.disclaimer,
+            search_mode=final_resp.search_mode.value if hasattr(final_resp.search_mode, "value") else str(final_resp.search_mode),
+            live_research_metadata=final_resp.live_research_metadata,
         )
 
     except Exception as exc:

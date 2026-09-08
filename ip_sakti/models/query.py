@@ -60,6 +60,14 @@ class AgentType(str, Enum):
     TK_ABS_AGENT = "tk_abs_agent"
 
 
+class SearchMode(str, Enum):
+    """Retrieval search mode."""
+
+    INTERNAL = "internal"
+    LIVE = "live"
+    HYBRID = "hybrid"
+
+
 # =============================================================================
 # Session & Conversation Memory
 # =============================================================================
@@ -141,6 +149,14 @@ class QueryRequest(BaseModel):
         default=None,
         description="Structured session context inferred from conversation.",
     )
+    search_mode: SearchMode = Field(
+        default=SearchMode.HYBRID,
+        description="Retrieval search mode: internal, live, or hybrid.",
+    )
+    user_id: Optional[str] = Field(
+        default=None,
+        description="ID of authenticated user submitting query.",
+    )
 
 
 # =============================================================================
@@ -206,6 +222,14 @@ class QueryContext(BaseModel):
     session_context: Optional[SessionContext] = Field(
         default=None,
         description="Structured session context inferred from conversation.",
+    )
+    search_mode: SearchMode = Field(
+        default=SearchMode.HYBRID,
+        description="Resolved retrieval search mode.",
+    )
+    user_id: Optional[str] = Field(
+        default=None,
+        description="ID of authenticated user submitting query.",
     )
 
 
@@ -449,6 +473,14 @@ class FinalResponse(BaseModel):
     created_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),
         description="UTC timestamp when the response was generated.",
+    )
+    search_mode: SearchMode = Field(
+        default=SearchMode.HYBRID,
+        description="Search mode executed for this response.",
+    )
+    live_research_metadata: Optional[dict[str, Any]] = Field(
+        default=None,
+        description="Metadata from live research execution if triggered.",
     )
 
 

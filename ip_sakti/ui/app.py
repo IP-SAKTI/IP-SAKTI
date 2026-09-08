@@ -84,48 +84,77 @@ def _get_cookie_manager():
 
 def initialize_authentication() -> None:
     """
-    Restore authenticated session from browser cookie on every Streamlit rerun.
+    Restore authenticated session from persistent storage (URL query params / cookie)
+    on every Streamlit rerun or browser refresh.
 
     Flow:
     1. If session_state already has authenticated_user → already active, skip.
-    2. Read the persistent browser cookie.
-    3. Validate the token against the server-side session store.
-    4. If valid → restore authenticated_user in session_state.
-    5. If invalid/absent → leave unauthenticated (show login page).
+    2. Check native Streamlit query_params for persistent session token.
+    3. If not found, check persistent browser cookie if available.
+    4. Validate the token against the server-side session store / Supabase Auth.
+    5. If valid → restore authenticated_user in session_state.
+    6. If invalid/absent → leave unauthenticated (show login page).
     """
     if st.session_state.get("authenticated_user") is not None:
         return  # Already authenticated in this session
 
-    if not _COOKIES_AVAILABLE:
-        return  # No cookie support; session_state only
+    signed_token: Optional[str] = None
 
-    cookie_manager = _get_cookie_manager()
-    if cookie_manager is None:
-        return
+    # 1. Native Streamlit persistence via st.query_params (instant across Ctrl+R / browser reload)
+    try:
+        if "session" in st.query_params and st.query_params["session"]:
+            signed_token = st.query_params["session"]
+    except Exception:
+        pass
 
-    signed_token: Optional[str] = cookie_manager.get(COOKIE_NAME)
+    # 2. Browser cookie persistence if extra_streamlit_components is available
+    if not signed_token and _COOKIES_AVAILABLE:
+        cookie_manager = _get_cookie_manager()
+        if cookie_manager is not None:
+            signed_token = cookie_manager.get(COOKIE_NAME)
+
     if not signed_token:
         return
 
     session_mgr = get_session_manager()
     user_data = session_mgr.validate_session(signed_token)
+    if not user_data:
+        auth_svc = get_auth_service()
+        user_data = auth_svc.verify_session(signed_token)
+
     if user_data:
         st.session_state.authenticated_user = user_data
+        st.session_state["session_token"] = signed_token
+        st.session_state["page"] = "dashboard"
+        st.session_state.auth_page = "authenticated"
+        try:
+            st.query_params["session"] = signed_token
+        except Exception:
+            pass
         # Reset conversation so it loads fresh for this user
         if "active_conversation_id" not in st.session_state:
             st.session_state.active_conversation_id = None
         if "messages" not in st.session_state:
             st.session_state.messages = []
         logger.info(
-            "Restored session from cookie",
+            "Restored session from persistent token",
             extra={"user_id": user_data["id"]},
         )
     else:
-        # Token invalid/expired — clear stale cookie
+        st.session_state.pop("session_token", None)
+        # Token invalid/expired — clear stale params & cookie
         try:
-            cookie_manager.delete(COOKIE_NAME)
+            if "session" in st.query_params:
+                del st.query_params["session"]
         except Exception:
             pass
+        if _COOKIES_AVAILABLE:
+            cookie_manager = _get_cookie_manager()
+            if cookie_manager is not None:
+                try:
+                    cookie_manager.delete(COOKIE_NAME)
+                except Exception:
+                    pass
 
 
 def md_html(content: str, sidebar: bool = False) -> None:
@@ -1100,7 +1129,12 @@ def render_sidebar(
         st.rerun()
 
     if st.sidebar.button("🚪 Logout", key="sb_btn_logout", use_container_width=True):
-        # Revoke persistent session + delete cookie
+        # Revoke persistent session + delete cookie + clear query params
+        try:
+            if "session" in st.query_params:
+                del st.query_params["session"]
+        except Exception:
+            pass
         cookie_manager = _get_cookie_manager()
         if cookie_manager is not None:
             signed_token = cookie_manager.get(COOKIE_NAME)
@@ -1110,6 +1144,7 @@ def render_sidebar(
                 cookie_manager.delete(COOKIE_NAME, key="sb_logout_cookie_del")
             except Exception:
                 pass
+        st.session_state.pop("session_token", None)
         st.session_state.authenticated_user = None
         st.session_state.active_conversation_id = None
         st.session_state.messages = []
@@ -1400,7 +1435,12 @@ def render_header_user_profile(user: Dict[str, Any]) -> None:
                 st.session_state.show_settings = True
                 st.rerun()
             if st.button("🚪 Logout", key="hdr_btn_logout", use_container_width=True):
-                # Revoke persistent session + delete cookie
+                # Revoke persistent session + delete cookie + clear query params
+                try:
+                    if "session" in st.query_params:
+                        del st.query_params["session"]
+                except Exception:
+                    pass
                 cookie_manager = _get_cookie_manager()
                 if cookie_manager is not None:
                     signed_token = cookie_manager.get(COOKIE_NAME)
@@ -1410,6 +1450,7 @@ def render_header_user_profile(user: Dict[str, Any]) -> None:
                         cookie_manager.delete(COOKIE_NAME, key="hdr_logout_cookie_del")
                     except Exception:
                         pass
+                st.session_state.pop("session_token", None)
                 st.session_state.authenticated_user = None
                 st.session_state.active_conversation_id = None
                 st.session_state.messages = []
@@ -1736,6 +1777,10 @@ def render_login_page(auth_service: AuthService) -> None:
                     # Create persistent browser session
                     session_mgr = get_session_manager()
                     signed_token = session_mgr.create_session(user_data["id"])
+                    try:
+                        st.query_params["session"] = signed_token
+                    except Exception as q_err:
+                        logger.warning(f"Could not set query params session: {q_err}")
                     cookie_manager = _get_cookie_manager()
                     if cookie_manager is not None:
                         try:
@@ -1748,6 +1793,7 @@ def render_login_page(auth_service: AuthService) -> None:
                         except Exception as e:
                             logger.warning(f"Could not set login cookie: {e}")
                     st.session_state.authenticated_user = user_data
+                    st.session_state["session_token"] = signed_token
                     st.session_state["page"] = "dashboard"
                     st.session_state.auth_page = "authenticated"
                     st.session_state.active_conversation_id = None
@@ -1822,6 +1868,10 @@ def render_registration_page(auth_service: AuthService) -> None:
                     # Create persistent browser session
                     session_mgr = get_session_manager()
                     signed_token = session_mgr.create_session(user_data["id"])
+                    try:
+                        st.query_params["session"] = signed_token
+                    except Exception as q_err:
+                        logger.warning(f"Could not set query params session: {q_err}")
                     cookie_manager = _get_cookie_manager()
                     if cookie_manager is not None:
                         try:
@@ -1834,6 +1884,7 @@ def render_registration_page(auth_service: AuthService) -> None:
                         except Exception as e:
                             logger.warning(f"Could not set registration cookie: {e}")
                     st.session_state.authenticated_user = user_data
+                    st.session_state["session_token"] = signed_token
                     st.session_state["page"] = "dashboard"
                     st.session_state.auth_page = "authenticated"
                     st.session_state.active_conversation_id = None
@@ -1960,6 +2011,15 @@ def main() -> None:
     # 2. Authenticated Application
     user = st.session_state.authenticated_user
     user_id = user["id"]
+
+    # Ensure session token is synchronized to browser URL query parameters during page rendering
+    if "session_token" in st.session_state and st.session_state["session_token"]:
+        token_val = str(st.session_state["session_token"])
+        if st.query_params.get("session") != token_val:
+            try:
+                st.query_params["session"] = token_val
+            except Exception as sync_err:
+                logger.warning(f"Could not sync query param session: {sync_err}")
 
     # Render header user profile control
     render_header_user_profile(user)

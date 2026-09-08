@@ -84,14 +84,26 @@ def generate_title(query: str) -> str:
     return title if title else "New Conversation"
 
 
+import os
+
 class ChatStorageService:
     """
-    Manages persistence of conversations and messages in SQLite database.
+    Manages persistence of conversations and messages in Supabase (production)
+    or SQLite (local/testing fallback).
     """
 
     def __init__(self, db_manager: DatabaseManager | None = None) -> None:
-        """Initialise ChatStorageService with optional DatabaseManager."""
+        """Initialise ChatStorageService with optional DatabaseManager or Supabase backend."""
         self.db = db_manager or DatabaseManager()
+        self.supabase_storage = None
+        if db_manager is None and os.getenv("SUPABASE_URL") and os.getenv("SUPABASE_ANON_KEY"):
+            try:
+                from ip_sakti.utils.supabase_chat_storage import SupabaseChatStorageService
+                self.supabase_storage = SupabaseChatStorageService()
+                logger.info("ChatStorageService using persistent Supabase backend.")
+            except Exception as exc:
+                logger.warning(f"Could not initialise SupabaseChatStorageService: {exc}. Using SQLite.")
+
         try:
             self.db.initialise()
         except Exception as exc:
@@ -108,6 +120,9 @@ class ChatStorageService:
 
         Returns conversation record dict.
         """
+        if self.supabase_storage is not None:
+            return self.supabase_storage.create_conversation(title=title, conversation_id=conversation_id, user_id=user_id)
+
         cid = conversation_id or str(uuid4())
         conv_title = title or "New Chat"
         now_iso = datetime.now(timezone.utc).isoformat()
@@ -145,6 +160,9 @@ class ChatStorageService:
 
         Validates user ownership if user_id is provided.
         """
+        if self.supabase_storage is not None:
+            return self.supabase_storage.get_conversation(conversation_id=conversation_id, user_id=user_id)
+
         try:
             conn = self.db.connection
             if user_id:
@@ -208,6 +226,9 @@ class ChatStorageService:
         """
         Fetch most recently updated conversations for the active user.
         """
+        if self.supabase_storage is not None:
+            return self.supabase_storage.list_conversations(user_id=user_id, limit=limit)
+
         try:
             conn = self.db.connection
             if user_id:
@@ -260,6 +281,15 @@ class ChatStorageService:
         If role is 'user' and the conversation has default title 'New Chat',
         automatically generates title from the user query.
         """
+        if self.supabase_storage is not None:
+            return self.supabase_storage.add_message(
+                conversation_id=conversation_id,
+                role=role,
+                content=content,
+                metadata=metadata,
+                user_id=user_id,
+            )
+
         msg_id = str(uuid4())
         now_iso = datetime.now(timezone.utc).isoformat()
 
@@ -337,6 +367,9 @@ class ChatStorageService:
         """
         Delete a conversation and its messages from storage if user owns it.
         """
+        if self.supabase_storage is not None:
+            return self.supabase_storage.delete_conversation(conversation_id=conversation_id, user_id=user_id)
+
         try:
             conn = self.db.connection
             with conn:

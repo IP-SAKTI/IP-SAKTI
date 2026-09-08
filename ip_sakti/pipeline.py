@@ -36,10 +36,11 @@ from typing import Sequence
 
 from ip_sakti.agents import BaseAgent, IPAgent, RegulatoryAgent, TKABSAgent
 from ip_sakti.llm import AnswerSynthesisService
-from ip_sakti.models.query import AgentType, EvidenceChunk, FinalResponse, QueryRequest
+from ip_sakti.models.query import AgentType, EvidenceChunk, FinalResponse, QueryRequest, SearchMode
 from ip_sakti.multilingual import MultilingualService
 from ip_sakti.orchestrator import Orchestrator
 from ip_sakti.retrieval import HybridRAGPipeline
+from ip_sakti.retrieval.live_research_manager import LiveResearchManager
 from ip_sakti.rule_engine import AgentRouter, RuleEngine
 
 logger = logging.getLogger(__name__)
@@ -59,6 +60,7 @@ class PipelineCoordinator:
         agent_router: AgentRouter | None = None,
         rag_pipeline: HybridRAGPipeline | None = None,
         synthesis_service: AnswerSynthesisService | None = None,
+        live_research_manager: LiveResearchManager | None = None,
         agents: dict[AgentType, BaseAgent] | None = None,
     ) -> None:
         """Initialise pipeline coordinator with optional component overrides."""
@@ -66,6 +68,7 @@ class PipelineCoordinator:
         self.orchestrator = orchestrator or Orchestrator()
         self.rule_engine = rule_engine or RuleEngine()
         self.agent_router = agent_router or AgentRouter()
+        self.live_research_manager = live_research_manager or LiveResearchManager()
         if rag_pipeline is not None:
             self.rag_pipeline = rag_pipeline
         else:
@@ -144,12 +147,52 @@ class PipelineCoordinator:
                     seen_chunk_ids.add(chunk.chunk_id)
                     collected_evidence.append(chunk)
 
+        # Step 5b: Live Web & Patent Research Execution
+        live_evidence: list[EvidenceChunk] = []
+        research_session_id: str | None = None
+
+        if q_ctx.search_mode != SearchMode.INTERNAL:
+            try:
+                live_evidence, research_session_id = self.live_research_manager.conduct_live_research(
+                    query=q_ctx.translated_query,
+                    jurisdiction=q_ctx.jurisdiction.value,
+                    search_mode=q_ctx.search_mode,
+                    user_id=q_ctx.user_id,
+                    conversation_id=request.conversation_id,
+                )
+            except Exception as live_exc:
+                logger.warning(f"Live research failed: {live_exc}. Safely falling back to internal RAG.")
+                live_evidence = []
+
+        # Step 5c: Evidence Fusion (Internal Hybrid RAG + Live Research Evidence)
+        fused_evidence = self.live_research_manager.fuse_evidence(
+            internal_evidence=collected_evidence,
+            live_evidence=live_evidence,
+            search_mode=q_ctx.search_mode,
+        )
+
+        live_metadata = {
+            "research_session_id": research_session_id,
+            "search_mode": q_ctx.search_mode.value,
+            "live_sources_retrieved": len(live_evidence),
+            "internal_sources_retrieved": len(collected_evidence),
+            "total_fused_sources": len(fused_evidence),
+            "status": "completed" if live_evidence else ("fallback_internal" if q_ctx.search_mode != SearchMode.INTERNAL else "internal_only"),
+        }
+
         # Step 6: LLM Synthesis & Safety Validation
         final_response = self.synthesis_service.synthesize(
             context=q_ctx,
-            evidence=collected_evidence,
+            evidence=fused_evidence,
             agent_type=primary_agent_type,
             applied_rules=applied_rules,
+        )
+
+        final_response = final_response.model_copy(
+            update={
+                "search_mode": q_ctx.search_mode,
+                "live_research_metadata": live_metadata,
+            }
         )
 
         # Step 7: Response Translation (if user language is non-English and not an abstention)

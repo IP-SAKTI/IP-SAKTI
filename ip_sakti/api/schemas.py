@@ -48,7 +48,14 @@ class APIQueryRequest(BaseModel):
         default_factory=list,
         description="Recent conversation history turns for session context.",
     )
-
+    search_mode: str = Field(
+        default="hybrid",
+        description="Retrieval search mode: 'internal', 'live', or 'hybrid'.",
+    )
+    user_id: Optional[str] = Field(
+        default=None,
+        description="Optional authenticated user ID.",
+    )
 
 
 class APIQueryResponse(BaseModel):
@@ -70,3 +77,11 @@ class APIQueryResponse(BaseModel):
         default_factory=list, description="List of specialist agent identifiers invoked."
     )
     disclaimer: str = Field(..., description="Legal and regulatory informational disclaimer.")
+    search_mode: str = Field(
+        default="hybrid",
+        description="Search mode executed.",
+    )
+    live_research_metadata: Optional[dict] = Field(
+        default=None,
+        description="Live web/patent research execution metadata.",
+    )

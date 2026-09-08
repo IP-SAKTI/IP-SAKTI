@@ -60,14 +60,26 @@ def verify_password(password: str, password_hash: str) -> bool:
         return False
 
 
+import os
+
 class AuthService:
     """
-    Manages user authentication and user record persistence in SQLite.
+    Manages user authentication and user record persistence in Supabase (production)
+    or SQLite (local/testing fallback).
     """
 
     def __init__(self, db_manager: DatabaseManager | None = None) -> None:
-        """Initialise AuthService with optional DatabaseManager."""
+        """Initialise AuthService with optional DatabaseManager or Supabase backend."""
         self.db = db_manager or DatabaseManager()
+        self.supabase_auth = None
+        if db_manager is None and os.getenv("SUPABASE_URL") and os.getenv("SUPABASE_ANON_KEY"):
+            try:
+                from ip_sakti.utils.supabase_auth import SupabaseAuthService
+                self.supabase_auth = SupabaseAuthService()
+                logger.info("AuthService using persistent Supabase Auth backend.")
+            except Exception as exc:
+                logger.warning(f"Could not initialise SupabaseAuthService: {exc}. Using SQLite.")
+
         try:
             self.db.initialise()
         except Exception as exc:
@@ -86,6 +98,14 @@ class AuthService:
 
         Returns (user_dict, error_message).
         """
+        if self.supabase_auth is not None:
+            return self.supabase_auth.register_user(
+                name=name,
+                email=email,
+                password=password,
+                confirm_password=confirm_password,
+                terms_accepted=terms_accepted,
+            )
         # 1. Validation checks
         if not name or not name.strip():
             return None, "Full Name is required."
@@ -144,6 +164,9 @@ class AuthService:
 
         Returns (user_dict, error_message).
         """
+        if self.supabase_auth is not None:
+            return self.supabase_auth.authenticate_user(email=email, password=password)
+
         if not email or not email.strip() or not password:
             return None, "Incorrect email or password."
 
@@ -173,3 +196,11 @@ class AuthService:
         except Exception as exc:
             logger.error(f"Error authenticating user {clean_email}: {exc}")
             return None, "An error occurred during authentication."
+
+    def verify_session(self, access_token: str) -> Optional[Dict[str, Any]]:
+        """
+        Verify an authenticated session token via Supabase Auth.
+        """
+        if self.supabase_auth is not None:
+            return self.supabase_auth.verify_session(access_token)
+        return None
