@@ -68,10 +68,18 @@ def get_auth_service() -> AuthService:
 
 
 def _get_cookie_manager():
-    """Return a CookieManager if extra_streamlit_components is available."""
-    if _COOKIES_AVAILABLE:
-        return stx.CookieManager(key="ipsakti_cookie_mgr")
-    return None
+    """Return a CookieManager if extra_streamlit_components is available.
+    Caches the instance in st.session_state to prevent DuplicateWidgetID errors.
+    """
+    if not _COOKIES_AVAILABLE:
+        return None
+    if "_cookie_manager" not in st.session_state:
+        try:
+            st.session_state["_cookie_manager"] = stx.CookieManager(key="ipsakti_cookie_mgr")
+        except Exception as err:
+            logger.warning(f"Could not initialize CookieManager: {err}")
+            return None
+    return st.session_state["_cookie_manager"]
 
 
 def initialize_authentication() -> None:
@@ -1097,7 +1105,7 @@ def render_sidebar(
             if signed_token:
                 get_session_manager().revoke_session(signed_token)
             try:
-                cookie_manager.delete(COOKIE_NAME)
+                cookie_manager.delete(COOKIE_NAME, key="sb_logout_cookie_del")
             except Exception:
                 pass
         st.session_state.authenticated_user = None
@@ -1105,6 +1113,8 @@ def render_sidebar(
         st.session_state.messages = []
         st.session_state.auth_page = "login"
         st.session_state["page"] = "login"
+        if "_cookie_manager" in st.session_state:
+            del st.session_state["_cookie_manager"]
         st.rerun()
 
     md_html(
@@ -1395,7 +1405,7 @@ def render_header_user_profile(user: Dict[str, Any]) -> None:
                     if signed_token:
                         get_session_manager().revoke_session(signed_token)
                     try:
-                        cookie_manager.delete(COOKIE_NAME)
+                        cookie_manager.delete(COOKIE_NAME, key="hdr_logout_cookie_del")
                     except Exception:
                         pass
                 st.session_state.authenticated_user = None
@@ -1403,6 +1413,8 @@ def render_header_user_profile(user: Dict[str, Any]) -> None:
                 st.session_state.messages = []
                 st.session_state.auth_page = "login"
                 st.session_state["page"] = "login"
+                if "_cookie_manager" in st.session_state:
+                    del st.session_state["_cookie_manager"]
                 st.rerun()
 
 
@@ -1720,11 +1732,15 @@ def render_login_page(auth_service: AuthService) -> None:
                     signed_token = session_mgr.create_session(user_data["id"])
                     cookie_manager = _get_cookie_manager()
                     if cookie_manager is not None:
-                        cookie_manager.set(
-                            COOKIE_NAME,
-                            signed_token,
-                            max_age=30 * 24 * 3600,  # 30 days in seconds
-                        )
+                        try:
+                            cookie_manager.set(
+                                COOKIE_NAME,
+                                signed_token,
+                                key="login_cookie_set",
+                                max_age=30 * 24 * 3600,  # 30 days in seconds
+                            )
+                        except Exception as e:
+                            logger.warning(f"Could not set login cookie: {e}")
                     st.session_state.authenticated_user = user_data
                     st.session_state["page"] = "dashboard"
                     st.session_state.auth_page = "authenticated"
@@ -1802,11 +1818,15 @@ def render_registration_page(auth_service: AuthService) -> None:
                     signed_token = session_mgr.create_session(user_data["id"])
                     cookie_manager = _get_cookie_manager()
                     if cookie_manager is not None:
-                        cookie_manager.set(
-                            COOKIE_NAME,
-                            signed_token,
-                            max_age=30 * 24 * 3600,  # 30 days in seconds
-                        )
+                        try:
+                            cookie_manager.set(
+                                COOKIE_NAME,
+                                signed_token,
+                                key="reg_cookie_set",
+                                max_age=30 * 24 * 3600,  # 30 days in seconds
+                            )
+                        except Exception as e:
+                            logger.warning(f"Could not set registration cookie: {e}")
                     st.session_state.authenticated_user = user_data
                     st.session_state["page"] = "dashboard"
                     st.session_state.auth_page = "authenticated"
