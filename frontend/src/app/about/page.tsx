@@ -104,40 +104,40 @@ export default function AboutPage() {
 
   const team = [
     {
-      name: 'Manaswitha',
-      role: 'Lead Engineer & System Architecture',
-      initials: 'M',
-      dept: 'Frontend & System Design',
+      name: 'Manaswitha Chowdary',
+      role: 'Team Leader',
+      initials: 'MC',
+      responsibilities: ['UI/UX Design', 'Frontend Development', 'Project Coordination'],
     },
     {
-      name: 'Johney',
-      role: 'RAG Pipeline & Supabase Integration',
-      initials: 'J',
-      dept: 'Backend & Data Architecture',
+      name: 'Johney Rejithaliah',
+      role: 'AI/ML & Backend',
+      initials: 'JR',
+      responsibilities: ['Model Integration', 'Backend APIs', 'System Architecture'],
     },
     {
-      name: 'Aarav',
-      role: 'Multilingual NLP & Language Registry',
-      initials: 'A',
-      dept: 'NLP & Translation Layer',
+      name: 'Devaj Ragesh',
+      role: 'Research & Knowledge Integration',
+      initials: 'DR',
+      responsibilities: ['Traditional Knowledge Research', 'Data Curation', 'Source Validation'],
     },
     {
-      name: 'Ananya',
-      role: 'Rule Engine & Legal Knowledge Modeling',
-      initials: 'AN',
-      dept: 'Regulatory & Rule Engine',
-    },
-    {
-      name: 'Devansh',
-      role: 'FAISS & Sparse Retrieval Optimization',
-      initials: 'D',
-      dept: 'Vector Search & Indexing',
-    },
-    {
-      name: 'Priya',
-      role: 'Citation Validation & Grounding Systems',
+      name: 'Preethi',
+      role: 'Content & Documentation',
       initials: 'P',
-      dept: 'Accuracy & Abstention Engine',
+      responsibilities: ['Content Writing', 'Domain Research', 'Technical Documentation'],
+    },
+    {
+      name: 'Lokesh',
+      role: 'Testing, Deployment & DevOps',
+      initials: 'L',
+      responsibilities: ['System Testing', 'Deployment', 'Performance Optimization'],
+    },
+    {
+      name: 'Satyakam Tripathy',
+      role: 'Strategy & Outreach',
+      initials: 'ST',
+      responsibilities: ['Impact Analysis', 'Presentation Design', 'Stakeholder Engagement'],
     },
   ];
 
@@ -358,25 +358,31 @@ export default function AboutPage() {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
             {team.map((t, idx) => (
               <div
                 key={idx}
-                className="bg-white border border-[#C8D7C2] rounded-xl p-4 shadow-xs flex items-center gap-3.5"
+                className="bg-white border border-[#C8D7C2] rounded-xl p-3 shadow-xs flex flex-col justify-between hover:border-[#003E29] transition-colors"
               >
-                <div className="w-10 h-10 rounded-full bg-[#003E29] text-white font-bold text-sm flex items-center justify-center shrink-0 border border-[#195941]">
-                  {t.initials}
-                </div>
                 <div>
-                  <div className="font-serif-heading font-bold text-sm text-[#003E29]">
+                  <div className="w-8 h-8 rounded-full bg-[#003E29] text-white font-bold text-xs flex items-center justify-center shrink-0 border border-[#195941] mb-2">
+                    {t.initials}
+                  </div>
+                  <div className="font-serif-heading font-bold text-xs text-[#003E29] leading-tight">
                     {t.name}
                   </div>
-                  <div className="text-[11px] font-semibold text-[#385246]">
+                  <div className="text-[11px] font-semibold text-[#385246] mt-0.5 leading-snug">
                     {t.role}
                   </div>
-                  <div className="text-[10px] text-[#4A6357]">
-                    {t.dept}
-                  </div>
+                </div>
+
+                <div className="mt-2.5 pt-2 border-t border-[#C8D7C2]/60 space-y-0.5">
+                  {t.responsibilities.map((resp, rIdx) => (
+                    <div key={rIdx} className="text-[10px] text-[#4A6357] leading-tight flex items-start gap-1">
+                      <span className="text-[#003E29] font-bold">•</span>
+                      <span>{resp}</span>
+                    </div>
+                  ))}
                 </div>
               </div>
             ))}
