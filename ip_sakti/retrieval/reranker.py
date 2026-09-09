@@ -11,6 +11,15 @@ from __future__ import annotations
 import logging
 from typing import Sequence
 
+import os
+from pathlib import Path
+
+# Ensure valid HuggingFace / SentenceTransformers cache path on Windows
+if "HF_HOME" in os.environ and not Path(os.environ["HF_HOME"].split(":")[0] + ":\\").exists():
+    os.environ["HF_HOME"] = str(Path.home() / ".cache" / "huggingface")
+if "SENTENCE_TRANSFORMERS_HOME" in os.environ and not Path(os.environ["SENTENCE_TRANSFORMERS_HOME"].split(":")[0] + ":\\").exists():
+    os.environ["SENTENCE_TRANSFORMERS_HOME"] = str(Path.home() / ".cache" / "torch" / "sentence_transformers")
+
 from sentence_transformers import CrossEncoder
 
 from ip_sakti.retrieval.exceptions import RetrievalError

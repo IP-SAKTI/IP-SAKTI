@@ -54,8 +54,17 @@ def sanitize_web_snippet(text: str, max_chars: int = 1200) -> str:
     cleaned = re.sub(r"\s+", " ", cleaned).strip()
 
     if len(cleaned) > max_chars:
-        words = cleaned[:max_chars].rsplit(" ", 1)[0]
-        cleaned = (words if words else cleaned[:max_chars]) + "..."
+        truncated = cleaned[:max_chars]
+        # Prefer breaking at the last complete sentence
+        last_period = max(truncated.rfind('. '), truncated.rfind('? '), truncated.rfind('! '))
+        if last_period > max_chars * 0.6:
+            cleaned = truncated[:last_period + 1].strip()
+        else:
+            # Fall back to breaking at a word boundary cleanly
+            words = truncated.rsplit(" ", 1)[0]
+            cleaned = (words if words else truncated).strip()
+            if not cleaned.endswith('.'):
+                cleaned += "..."
 
     return cleaned
 

@@ -178,14 +178,24 @@ class LiveResearchManager:
         # For SearchMode.HYBRID:
         # Interleave or sort by rerank_score
         combined = []
-        seen_contents = set()
+        seen_keys: set[str] = set()
 
-        # Filter duplicates
+        # Filter duplicates across doc_id, source_url, and content prefix
         for chunk in live_evidence + internal_evidence:
-            norm_content = chunk.content[:100].strip().lower()
-            if norm_content not in seen_contents:
-                seen_contents.add(norm_content)
-                combined.append(chunk)
+            url_key = (chunk.source_url or '').strip().lower().rstrip('/')
+            doc_key = (chunk.doc_id or '').strip().lower()
+            text_key = chunk.content[:60].strip().lower()
+
+            dedup_signature_1 = f"{doc_key}:{text_key}"
+            dedup_signature_2 = f"{url_key}:{text_key}"
+
+            if dedup_signature_1 in seen_keys or dedup_signature_2 in seen_keys:
+                continue
+
+            seen_keys.add(dedup_signature_1)
+            if url_key:
+                seen_keys.add(dedup_signature_2)
+            combined.append(chunk)
 
         # Sort by rerank_score / authority
         combined.sort(key=lambda c: (c.rerank_score or 0.5), reverse=True)

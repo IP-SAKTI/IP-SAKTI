@@ -118,41 +118,42 @@ def run_ingestion(
     total_chunks = pipeline.build_index(documents)
     pipeline.save_index(target_index_dir)
 
-    # Populate SQLite documents table
+    # Populate SQLite documents table if local conn exists
     chunks = pipeline.chunker.chunk_documents(documents)
-    conn = db_mgr.connection
-    with conn:
-        # Clear existing documents
-        conn.execute("DELETE FROM documents")
-        for chunk in chunks:
-            meta = chunk.metadata
-            tags_json = json.dumps(chunk.tags) if chunk.tags else "[]"
-            conn.execute(
-                """
-                INSERT INTO documents (
-                    doc_id, title, source_id, source_name, source_url,
-                    authority, document_type, jurisdiction, language,
-                    publication_date, permitted_use, tags, chunk_index,
-                    parent_doc_id, indexed_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, DATETIME('now'))
-                """,
-                (
-                    chunk.doc_id,
-                    chunk.title,
-                    meta.source_id,
-                    meta.source_name,
-                    meta.source_url,
-                    meta.authority,
-                    meta.document_type,
-                    meta.jurisdiction,
-                    meta.language,
-                    str(meta.publication_date) if meta.publication_date else None,
-                    1 if meta.permitted_use else 0,
-                    tags_json,
-                    chunk.chunk_index,
-                    chunk.parent_doc_id,
-                ),
-            )
+    conn = getattr(db_mgr, "connection", None)
+    if conn:
+        with conn:
+            # Clear existing documents
+            conn.execute("DELETE FROM documents")
+            for chunk in chunks:
+                meta = chunk.metadata
+                tags_json = json.dumps(chunk.tags) if chunk.tags else "[]"
+                conn.execute(
+                    """
+                    INSERT INTO documents (
+                        doc_id, title, source_id, source_name, source_url,
+                        authority, document_type, jurisdiction, language,
+                        publication_date, permitted_use, tags, chunk_index,
+                        parent_doc_id, indexed_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, DATETIME('now'))
+                    """,
+                    (
+                        chunk.doc_id,
+                        chunk.title,
+                        meta.source_id,
+                        meta.source_name,
+                        meta.source_url,
+                        meta.authority,
+                        meta.document_type,
+                        meta.jurisdiction,
+                        meta.language,
+                        str(meta.publication_date) if meta.publication_date else None,
+                        1 if meta.permitted_use else 0,
+                        tags_json,
+                        chunk.chunk_index,
+                        chunk.parent_doc_id,
+                    ),
+                )
 
     chunks_with_url = sum(1 for c in chunks if c.metadata.source_url)
 

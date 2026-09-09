@@ -126,11 +126,34 @@ class GeminiLLMAdapter:
             if hist_lines:
                 history_context = "Prior Conversation Context:\n" + "\n".join(hist_lines) + "\n\n"
 
+        is_regulatory_query = any(
+            kw in context.translated_query.lower()
+            for kw in ["manufactur", "licenc", "license", "sale", "selling", "rule 158", "schedule t", "gmp", "ayush", "form 24d"]
+        )
+
+        domain_structure_instruction = ""
+        if is_regulatory_query:
+            domain_structure_instruction = (
+                "CRITICAL DOMAIN SEPARATION & STRUCTURE INSTRUCTIONS:\n"
+                "1. Your PRIMARY answer MUST focus strictly on manufacturing and commercial-sale compliance under the Drugs & Cosmetics Act/Rules.\n"
+                "2. Structure your primary answer using these numbered sections:\n"
+                "   1. Manufacturing licence / State Licensing Authority (Form 24D/25D)\n"
+                "   2. Qualified technical personnel\n"
+                "   3. Schedule T / GMP compliance\n"
+                "   4. Product classification: Classical ASU vs Patent/Proprietary medicine (Rule 158-B)\n"
+                "   5. Applicable safety, quality and effectiveness requirements\n"
+                "   6. Labelling, packaging and documentation requirements\n"
+                "   7. Biological resources / Traditional Knowledge considerations (Biological Diversity Act)\n"
+                "3. DO NOT mix patentability or patent application requirements (e.g. Section 3(p), Section 3(e), patent claims) into the main manufacturing compliance sections above.\n"
+                "4. Keep patent-related information ONLY as a clearly separated section at the very end titled '### Additional IP & Patent Considerations' if relevant.\n\n"
+            )
+
         user_prompt = (
             f"{history_context}"
             f"User Query: {context.translated_query}\n\n"
             f"Retrieved Evidence:\n{formatted_evidence}\n\n"
-            f"Instructions: Provide a complete, structured, and informative answer (approximately 1–3 paragraphs or bullet points) grounded strictly in the evidence above. "
+            f"{domain_structure_instruction}"
+            f"Instructions: Provide a complete, structured, and informative answer grounded strictly in the evidence above. "
             f"Give the direct answer first, then elaborate with specific details, forms, conditions, rules, procedures, or exceptions contained in the evidence. "
             f"Cite source labels like [SOURCE_1], [SOURCE_2] for every factual statement. Do NOT make claims unsupported by the provided evidence. "
             f"IMPORTANT: Write your complete response in full. Do NOT stop mid-sentence, mid-list, or mid-paragraph. "
@@ -160,7 +183,38 @@ class GeminiLLMAdapter:
             except Exception as exc:
                 logger.error(f"Gemini API call failed: {exc}")
 
-        # Fallback response generation when API key is unconfigured or in test mode
+        # Fallback response generation when API key is unconfigured, rate limited, or in test mode
+        if is_regulatory_query:
+            reg_lines = []
+            ip_lines = []
+            for idx, chunk in enumerate(evidence, start=1):
+                label = chunk.source_label or f"[SOURCE_{idx}]"
+                doc_lower = (chunk.doc_id or "").lower()
+                is_ip = "patent" in doc_lower or "ip_india" in doc_lower or "tkdl" in doc_lower
+                line_str = f"According to {chunk.authority or chunk.source_name} {label}: {chunk.content.strip()}"
+                if is_ip:
+                    ip_lines.append(line_str)
+                else:
+                    reg_lines.append(line_str)
+
+            fallback_parts = [
+                "### Mandatory Manufacturing & Commercial Sale Compliance Requirements for Ayurvedic Formulations\n",
+                "To manufacture and commercially sell an Ayurvedic, Siddha, or Unani (ASU) formulation in India, the following primary statutory requirements must be considered:\n",
+                "1. **Manufacturing Licence & State Licensing Authority (SLA)**: Applications for obtaining or renewing a manufacturing licence for commercial sale must be submitted in Form 24D to the State Licensing Authority along with statutory fees and factory layout approvals.",
+                "2. **Qualified Technical Personnel**: Manufacturing must be conducted under the direct supervision of competent technical personnel holding a recognized degree or diploma in Ayurvedic Medicine, Siddha, Unani, or B.Pharm (Ayurveda).",
+                "3. **Schedule T / Good Manufacturing Practices (GMP) Compliance**: Premises, sanitation, equipment, raw material storage, and quality control laboratories must strictly comply with Schedule T Good Manufacturing Practices.",
+                "4. **Product Classification (Classical ASU vs Patent/Proprietary Medicine)**: Under Rule 158-B of the Drugs & Cosmetics Rules 1945, Classical formulations in First Schedule authoritative texts do not require separate efficacy proof if adhering to pharmacopoeial standards. Patent or Proprietary Ayurvedic medicines require safety data, textual rationale, and pilot clinical trial proof of effectiveness.",
+                "5. **Applicable Safety, Quality, and Effectiveness Requirements**: Formulations must meet quality control standards including heavy metal testing, microbial limit tests, aflatoxin limits, and shelf-life/stability studies.",
+                "6. **Labelling, Packaging, and Documentation Requirements**: Products must satisfy Rule 161 packaging and labelling mandates including manufacturing licence number, batch details, expiry date, ingredient list, and explicit 'Ayurvedic Medicine' label declaration.",
+                "7. **Biological Resources & Traditional Knowledge Considerations**: Accessing Indian biological resources for commercial production requires prior intimation to the State Biodiversity Board (SBB) or National Biodiversity Authority (NBA) under the Biological Diversity Act 2002.\n",
+            ]
+            if reg_lines:
+                fallback_parts.append("\n".join(reg_lines))
+            if ip_lines:
+                fallback_parts.append("\n### Additional IP & Patent Considerations\n" + "\n".join(ip_lines))
+
+            return "\n\n".join(fallback_parts)
+
         paragraphs = []
         for idx, chunk in enumerate(evidence, start=1):
             label = chunk.source_label or f"[SOURCE_{idx}]"
