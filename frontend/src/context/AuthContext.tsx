@@ -23,6 +23,7 @@ interface AuthContextType {
   login: (email: string, password?: string) => Promise<boolean>;
   register: (fullName: string, email: string, password?: string) => Promise<boolean>;
   updateProfile: (updated: Partial<UserProfile>) => Promise<boolean>;
+  sendMagicLink: (email: string) => Promise<{ ok: boolean; message: string }>;
   logout: () => void;
 }
 
@@ -33,6 +34,7 @@ const AuthContext = createContext<AuthContextType>({
   login: async () => false,
   register: async () => false,
   updateProfile: async () => false,
+  sendMagicLink: async () => ({ ok: false, message: 'Not initialized' }),
   logout: () => {},
 });
 
@@ -227,6 +229,37 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     });
   };
 
+  /**
+   * Send a Supabase Magic Link email for passwordless sign-in.
+   * The backend calls Supabase /auth/v1/otp which dispatches the email.
+   * The user clicks the link → redirected to /auth/callback → session established.
+   */
+  const sendMagicLink = async (email: string): Promise<{ ok: boolean; message: string }> => {
+    const cleanEmail = email.trim().toLowerCase();
+    if (!cleanEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)) {
+      return { ok: false, message: 'Please enter a valid email address.' };
+    }
+    try {
+      const res = await fetch(`${API_BASE}/auth/magic-link`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: cleanEmail,
+          redirect_to: `${window.location.origin}/auth/callback`,
+        }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        return { ok: true, message: data.message || 'Magic link sent. Please check your email.' };
+      }
+      const errData = await res.json().catch(() => ({}));
+      return { ok: false, message: errData.detail || 'Failed to send magic link. Please try again.' };
+    } catch (err) {
+      console.warn('sendMagicLink error:', err);
+      return { ok: false, message: 'Network error. Please check your connection and try again.' };
+    }
+  };
+
   const logout = async () => {
     const token = typeof window !== 'undefined' ? localStorage.getItem('ipsakti_auth_token') : null;
     setUser(null);
@@ -262,6 +295,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         login,
         register,
         updateProfile,
+        sendMagicLink,
         logout,
       }}
     >

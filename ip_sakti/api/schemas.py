@@ -103,6 +103,23 @@ class LoginRequest(BaseModel):
     password: str
 
 
+class MagicLinkRequest(BaseModel):
+    """Request payload for triggering a Supabase Magic Link email."""
+
+    email: str = Field(..., description="Email address to send the magic link to.")
+    redirect_to: str = Field(
+        default="http://localhost:3000/auth/callback",
+        description="Frontend callback URL Supabase redirects to after link click.",
+    )
+
+
+class MagicLinkResponse(BaseModel):
+    """Response after sending a magic link."""
+
+    status: str = Field(default="sent", description="'sent' on success.")
+    message: str = Field(default="Magic link sent. Check your email.")
+
+
 class AuthResponse(BaseModel):
     user: dict
     token: str

@@ -133,6 +133,46 @@ class SupabaseClient:
             logger.warning(f"Error signing out from Supabase: {exc}")
             return False
 
+    def sign_in_with_otp(self, email: str, redirect_to: str = "http://localhost:3000/auth/callback") -> bool:
+        """
+        Send a Magic Link OTP email to the user via Supabase Auth.
+
+        Supabase will email the user a one-time link.  When the user clicks it,
+        they are redirected to ``redirect_to`` with ``#access_token=...&type=magiclink``
+        appended to the URL hash by the Supabase GoTrue server.
+
+        Args:
+            email: Destination email address.
+            redirect_to: Frontend callback URL that will receive the session tokens.
+
+        Returns:
+            True if the email was dispatched successfully, False otherwise.
+
+        Raises:
+            RuntimeError: If Supabase credentials are not configured.
+        """
+        if not self.is_configured:
+            raise RuntimeError("Supabase credentials not configured.")
+
+        url = f"{self.url}/auth/v1/otp"
+        payload: Dict[str, Any] = {
+            "email": email,
+            "create_user": True,
+        }
+        headers = self._get_headers()
+        # Supabase reads redirect_to from query parameter, not body
+        with httpx.Client(timeout=self.timeout) as client:
+            resp = client.post(
+                url,
+                json=payload,
+                headers=headers,
+                params={"redirect_to": redirect_to},
+            )
+            if resp.status_code >= 400:
+                err_detail = resp.json().get("msg") or resp.json().get("error_description") or resp.text
+                raise ValueError(f"Supabase magic link failed ({resp.status_code}): {err_detail}")
+            return True
+
     # -------------------------------------------------------------------------
     # Database Operations (PostgREST /rest/v1)
     # -------------------------------------------------------------------------

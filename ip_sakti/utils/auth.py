@@ -59,6 +59,16 @@ class AuthService:
         """
         return self.supabase_auth.verify_session(access_token)
 
+    def send_magic_link(
+        self,
+        email: str,
+        redirect_to: str = "http://localhost:3000/auth/callback",
+    ) -> Tuple[bool, Optional[str]]:
+        """
+        Send a Magic Link OTP email via Supabase Auth for passwordless sign-in.
+        """
+        return self.supabase_auth.send_magic_link(email=email, redirect_to=redirect_to)
+
     def sign_out(self, access_token: Optional[str] = None) -> bool:
         """
         Sign out session from Supabase Auth.

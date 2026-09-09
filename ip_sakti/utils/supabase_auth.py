@@ -195,6 +195,35 @@ class SupabaseAuthService:
             logger.warning(f"Session token verification error: {exc}")
             return None
 
+    def send_magic_link(
+        self,
+        email: str,
+        redirect_to: str = "http://localhost:3000/auth/callback",
+    ) -> Tuple[bool, Optional[str]]:
+        """
+        Trigger a Supabase Magic Link email for passwordless sign-in.
+
+        Args:
+            email: The user's email address.
+            redirect_to: Frontend URL Supabase redirects to after the link is clicked.
+
+        Returns:
+            Tuple of (success: bool, error_message: Optional[str]).
+        """
+        if not email or not email.strip() or not _EMAIL_REGEX.match(email.strip()):
+            return False, "Please enter a valid email address."
+
+        if not self.is_supabase_enabled:
+            return False, "Authentication service is not configured."
+
+        clean_email = email.strip().lower()
+        try:
+            self.client.sign_in_with_otp(email=clean_email, redirect_to=redirect_to)
+            return True, None
+        except (ValueError, Exception) as exc:
+            logger.error(f"Magic link send failed for {clean_email}: {exc}")
+            return False, f"Failed to send magic link: {exc}"
+
     def sign_out(self, access_token: Optional[str] = None) -> bool:
         """
         Terminate session in Supabase Auth.

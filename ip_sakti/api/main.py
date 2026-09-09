@@ -19,6 +19,8 @@ from ip_sakti.api.schemas import (
     HealthResponse,
     RegisterRequest,
     LoginRequest,
+    MagicLinkRequest,
+    MagicLinkResponse,
     AuthResponse,
     ProfileUpdateRequest,
     ContactRequest,
@@ -231,6 +233,29 @@ async def login(payload: LoginRequest) -> AuthResponse:
 
     token = user_data.get("access_token") or ""
     return AuthResponse(user=user_data, token=token, message="Login successful.")
+
+
+@app.post("/auth/magic-link", response_model=MagicLinkResponse, tags=["Authentication"])
+async def send_magic_link(payload: MagicLinkRequest) -> MagicLinkResponse:
+    """
+    Send a Supabase Magic Link OTP email for passwordless authentication.
+
+    The user receives an email with a one-time link.  Clicking that link
+    redirects them to ``payload.redirect_to`` (default: ``/auth/callback``)
+    with ``#access_token=...&type=magiclink`` in the URL hash.
+    The frontend callback page exchanges these tokens via ``GET /auth/verify``.
+    """
+    auth_srv = get_auth_service()
+    ok, error_msg = auth_srv.send_magic_link(
+        email=payload.email,
+        redirect_to=payload.redirect_to,
+    )
+    if not ok:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=error_msg)
+    return MagicLinkResponse(
+        status="sent",
+        message="Magic link sent. Please check your email and click the link to sign in.",
+    )
 
 
 @app.get("/auth/verify", response_model=AuthResponse, tags=["Authentication"])
