@@ -42,6 +42,11 @@ langdetect==1.0.9
 # ── Multilingual — Translation ────────────────────────────────────────────────
 deep-translator==1.11.4
 
+# ── Speech-to-Text / Voice Input ──────────────────────────────────────────────
+openai-whisper==20250625
+imageio-ffmpeg==0.6.0
+python-multipart==0.0.32
+
 # ── HTTP client (used by Streamlit UI to call FastAPI) ────────────────────────
 httpx==0.27.2
 

@@ -9,7 +9,7 @@ import logging
 from contextlib import asynccontextmanager
 from typing import AsyncGenerator, Optional
 
-from fastapi import FastAPI, HTTPException, Header, Query, Response, status
+from fastapi import FastAPI, HTTPException, Header, Query, Response, status, File, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse
 
@@ -378,6 +378,32 @@ async def contact_support(payload: ContactRequest) -> ContactResponse:
 
     return ContactResponse(status="success", message="Your inquiry has been received. Our team will contact you shortly.")
 
+
+
+# ---------------------------------------------------------------------------
+# Speech-to-Text / Voice Input endpoint
+# ---------------------------------------------------------------------------
+
+@app.post("/transcribe", tags=["Voice Input"])
+async def transcribe_audio(file: UploadFile = File(...)):
+    """
+    Accepts recorded audio file (webm, wav, m4a, mp3, ogg) and returns transcribed text
+    using pretrained Whisper model.
+    """
+    if not file:
+        raise HTTPException(status_code=400, detail="No audio file provided.")
+
+    try:
+        content = await file.read()
+        from ip_sakti.services.transcription import transcribe_audio_bytes
+        res = transcribe_audio_bytes(content, filename=file.filename or "audio.webm")
+        return res
+    except Exception as e:
+        logger.error(f"Transcription API error: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Audio transcription failed: {str(e)}"
+        )
 
 
 # ---------------------------------------------------------------------------

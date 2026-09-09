@@ -215,3 +215,27 @@ export async function checkHealthAPI(): Promise<boolean> {
 export function getDocumentUrl(sourceId: string): string {
   return `${API_BASE_URL}/document/${encodeURIComponent(sourceId)}`;
 }
+
+export interface TranscribeResponse {
+  transcript: string;
+  language?: string;
+  error?: string | null;
+}
+
+export async function transcribeAudio(audioBlob: Blob): Promise<TranscribeResponse> {
+  const formData = new FormData();
+  formData.append('file', audioBlob, 'voice_input.webm');
+
+  const res = await fetch(`${API_BASE_URL}/transcribe`, {
+    method: 'POST',
+    body: formData,
+  });
+
+  if (!res.ok) {
+    const errText = await res.text().catch(() => 'Audio transcription request failed');
+    throw new Error(errText || `Server error ${res.status}`);
+  }
+
+  return res.json();
+}
+
