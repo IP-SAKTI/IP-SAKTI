@@ -1,122 +1,60 @@
 -- =============================================================================
--- IP-SAKTI Sahayak — Supabase Database Schema & Row Level Security (RLS)
+-- IP-SAKTI Sahayak — Production Supabase PostgreSQL Database Schema
+-- Single Source of Truth for Persistent Application Data
 -- =============================================================================
 
--- Enable UUID extension if not enabled
+-- Enable UUID extension if missing
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
--- 1. Profiles Table (Linked to auth.users)
+-- 1. PROFILES TABLE (Linked to auth.users)
 CREATE TABLE IF NOT EXISTS public.profiles (
     id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
-    display_name TEXT,
-    preferred_language VARCHAR(10) DEFAULT 'en',
-    created_at TIMESTAMPTZ DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL
+    display_name TEXT NOT NULL,
+    email TEXT,
+    preferred_language TEXT DEFAULT 'en',
+    organization TEXT DEFAULT 'IP-SAKTI',
+    role TEXT DEFAULT 'Researcher',
+    bio TEXT,
+    avatar_url TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 2. Conversations Table
-CREATE TABLE IF NOT EXISTS public.conversations (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
-    title TEXT NOT NULL DEFAULT 'New Chat',
-    created_at TIMESTAMPTZ DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL,
-    updated_at TIMESTAMPTZ DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL
-);
-
--- Index for listing conversations by user sorted by update time
-CREATE INDEX IF NOT EXISTS idx_conversations_user_updated
-    ON public.conversations(user_id, updated_at DESC);
-
--- 3. Messages Table
-CREATE TABLE IF NOT EXISTS public.messages (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    conversation_id UUID NOT NULL REFERENCES public.conversations(id) ON DELETE CASCADE,
-    user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
-    role VARCHAR(50) NOT NULL,
-    content TEXT NOT NULL,
-    citations JSONB DEFAULT '[]'::jsonb,
-    metadata JSONB,
-    created_at TIMESTAMPTZ DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL
-);
-
--- Index for messages in a conversation
-CREATE INDEX IF NOT EXISTS idx_messages_conversation
-    ON public.messages(conversation_id, created_at ASC);
-
--- 4. Uploaded Documents Table (Metadata)
-CREATE TABLE IF NOT EXISTS public.uploaded_documents (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
-    filename TEXT NOT NULL,
-    storage_path TEXT NOT NULL,
-    mime_type TEXT NOT NULL,
-    created_at TIMESTAMPTZ DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL
-);
-
-CREATE INDEX IF NOT EXISTS idx_uploaded_documents_user
-    ON public.uploaded_documents(user_id, created_at DESC);
-
--- 5. Research Sessions Table
-CREATE TABLE IF NOT EXISTS public.research_sessions (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
-    conversation_id UUID REFERENCES public.conversations(id) ON DELETE SET NULL,
-    query TEXT NOT NULL,
-    search_mode VARCHAR(50) NOT NULL DEFAULT 'hybrid',
-    status VARCHAR(50) NOT NULL DEFAULT 'pending',
-    created_at TIMESTAMPTZ DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL,
-    completed_at TIMESTAMPTZ
-);
-
-CREATE INDEX IF NOT EXISTS idx_research_sessions_user
-    ON public.research_sessions(user_id, created_at DESC);
-
--- 6. Research Sources Table
-CREATE TABLE IF NOT EXISTS public.research_sources (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    research_session_id UUID NOT NULL REFERENCES public.research_sessions(id) ON DELETE CASCADE,
-    source_id TEXT,
-    title TEXT NOT NULL,
-    url TEXT,
-    source_type VARCHAR(50) NOT NULL DEFAULT 'web',
-    authority_tier INTEGER NOT NULL DEFAULT 3,
-    snippet TEXT,
-    published_at DATE,
-    retrieved_at TIMESTAMPTZ DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL,
-    rank INTEGER DEFAULT 0
-);
-
-CREATE INDEX IF NOT EXISTS idx_research_sources_session
-    ON public.research_sources(research_session_id, rank ASC);
-
--- =============================================================================
--- Row Level Security (RLS) Policies
--- =============================================================================
-
--- Profiles RLS
+-- Enable RLS on profiles
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "Users can view their own profile"
     ON public.profiles FOR SELECT
     USING (auth.uid() = id);
 
-CREATE POLICY "Users can insert their own profile"
-    ON public.profiles FOR INSERT
-    WITH CHECK (auth.uid() = id);
-
 CREATE POLICY "Users can update their own profile"
     ON public.profiles FOR UPDATE
     USING (auth.uid() = id);
 
--- Conversations RLS
+CREATE POLICY "Users can insert their own profile"
+    ON public.profiles FOR INSERT
+    WITH CHECK (auth.uid() = id);
+
+
+-- 2. CONVERSATIONS TABLE
+CREATE TABLE IF NOT EXISTS public.conversations (
+    id TEXT PRIMARY KEY,
+    user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
+    title TEXT NOT NULL DEFAULT 'New Chat',
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Enable RLS on conversations
 ALTER TABLE public.conversations ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "Users can view their own conversations"
     ON public.conversations FOR SELECT
-    USING (auth.uid() = user_id);
+    USING (auth.uid() = user_id OR user_id IS NULL);
 
 CREATE POLICY "Users can insert their own conversations"
     ON public.conversations FOR INSERT
-    WITH CHECK (auth.uid() = user_id);
+    WITH CHECK (auth.uid() = user_id OR user_id IS NULL);
 
 CREATE POLICY "Users can update their own conversations"
     ON public.conversations FOR UPDATE
@@ -126,84 +64,130 @@ CREATE POLICY "Users can delete their own conversations"
     ON public.conversations FOR DELETE
     USING (auth.uid() = user_id);
 
--- Messages RLS
+
+-- 3. MESSAGES TABLE
+CREATE TABLE IF NOT EXISTS public.messages (
+    id TEXT PRIMARY KEY,
+    conversation_id TEXT NOT NULL REFERENCES public.conversations(id) ON DELETE CASCADE,
+    user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
+    role TEXT NOT NULL,
+    content TEXT NOT NULL,
+    metadata JSONB,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Enable RLS on messages
 ALTER TABLE public.messages ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "Users can view their own messages"
+CREATE POLICY "Users can view messages in their conversations"
     ON public.messages FOR SELECT
-    USING (auth.uid() = user_id);
+    USING (
+        EXISTS (
+            SELECT 1 FROM public.conversations c
+            WHERE c.id = messages.conversation_id
+            AND (c.user_id = auth.uid() OR c.user_id IS NULL)
+        )
+    );
 
-CREATE POLICY "Users can insert their own messages"
+CREATE POLICY "Users can insert messages into their conversations"
     ON public.messages FOR INSERT
-    WITH CHECK (auth.uid() = user_id);
+    WITH CHECK (
+        EXISTS (
+            SELECT 1 FROM public.conversations c
+            WHERE c.id = messages.conversation_id
+            AND (c.user_id = auth.uid() OR c.user_id IS NULL)
+        )
+    );
 
-CREATE POLICY "Users can delete their own messages"
-    ON public.messages FOR DELETE
+
+-- 4. SUPPORT INQUIRIES TABLE
+CREATE TABLE IF NOT EXISTS public.support_inquiries (
+    id TEXT PRIMARY KEY,
+    user_id UUID REFERENCES auth.users(id) ON DELETE SET NULL,
+    name TEXT NOT NULL,
+    email TEXT NOT NULL,
+    subject TEXT NOT NULL,
+    message TEXT NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Enable RLS on support_inquiries
+ALTER TABLE public.support_inquiries ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Users can insert support inquiries"
+    ON public.support_inquiries FOR INSERT
+    WITH CHECK (true);
+
+CREATE POLICY "Users can view their own support inquiries"
+    ON public.support_inquiries FOR SELECT
     USING (auth.uid() = user_id);
 
--- Uploaded Documents RLS
-ALTER TABLE public.uploaded_documents ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "Users can view their own uploaded documents"
-    ON public.uploaded_documents FOR SELECT
-    USING (auth.uid() = user_id);
+-- 5. RESEARCH SESSIONS TABLE
+CREATE TABLE IF NOT EXISTS public.research_sessions (
+    id TEXT PRIMARY KEY,
+    user_id UUID REFERENCES auth.users(id) ON DELETE SET NULL,
+    conversation_id TEXT REFERENCES public.conversations(id) ON DELETE CASCADE,
+    query TEXT NOT NULL,
+    search_mode TEXT NOT NULL DEFAULT 'hybrid',
+    status TEXT NOT NULL DEFAULT 'in_progress',
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    completed_at TIMESTAMPTZ
+);
 
-CREATE POLICY "Users can insert their own uploaded documents"
-    ON public.uploaded_documents FOR INSERT
-    WITH CHECK (auth.uid() = user_id);
-
-CREATE POLICY "Users can delete their own uploaded documents"
-    ON public.uploaded_documents FOR DELETE
-    USING (auth.uid() = user_id);
-
--- Research Sessions RLS
 ALTER TABLE public.research_sessions ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "Users can view their own research sessions"
-    ON public.research_sessions FOR SELECT
-    USING (auth.uid() = user_id);
+CREATE POLICY "Users can manage their research sessions"
+    ON public.research_sessions FOR ALL
+    USING (auth.uid() = user_id OR user_id IS NULL);
 
-CREATE POLICY "Users can insert their own research sessions"
-    ON public.research_sessions FOR INSERT
-    WITH CHECK (auth.uid() = user_id);
 
-CREATE POLICY "Users can update their own research sessions"
-    ON public.research_sessions FOR UPDATE
-    USING (auth.uid() = user_id);
+-- 6. RESEARCH SOURCES TABLE
+CREATE TABLE IF NOT EXISTS public.research_sources (
+    id TEXT PRIMARY KEY,
+    research_session_id TEXT NOT NULL REFERENCES public.research_sessions(id) ON DELETE CASCADE,
+    source_id TEXT,
+    title TEXT NOT NULL,
+    url TEXT,
+    source_type TEXT NOT NULL DEFAULT 'web',
+    authority_tier INTEGER NOT NULL DEFAULT 3,
+    snippet TEXT,
+    published_at TEXT,
+    retrieved_at TIMESTAMPTZ DEFAULT NOW(),
+    rank INTEGER DEFAULT 0
+);
 
-CREATE POLICY "Users can delete their own research sessions"
-    ON public.research_sessions FOR DELETE
-    USING (auth.uid() = user_id);
-
--- Research Sources RLS (Inherited access via research_session ownership)
 ALTER TABLE public.research_sources ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "Users can view research sources for their sessions"
+CREATE POLICY "Users can view research sources"
     ON public.research_sources FOR SELECT
     USING (
         EXISTS (
             SELECT 1 FROM public.research_sessions s
             WHERE s.id = research_sources.research_session_id
-              AND s.user_id = auth.uid()
+            AND (s.user_id = auth.uid() OR s.user_id IS NULL)
         )
     );
 
-CREATE POLICY "Users can insert research sources for their sessions"
-    ON public.research_sources FOR INSERT
-    WITH CHECK (
-        EXISTS (
-            SELECT 1 FROM public.research_sessions s
-            WHERE s.id = research_sources.research_session_id
-              AND s.user_id = auth.uid()
-        )
-    );
 
-CREATE POLICY "Users can delete research sources for their sessions"
-    ON public.research_sources FOR DELETE
-    USING (
-        EXISTS (
-            SELECT 1 FROM public.research_sessions s
-            WHERE s.id = research_sources.research_session_id
-              AND s.user_id = auth.uid()
-        )
-    );
+-- 7. ESCALATIONS TABLE
+CREATE TABLE IF NOT EXISTS public.escalations (
+    id TEXT PRIMARY KEY DEFAULT uuid_generate_v4()::text,
+    query_id TEXT NOT NULL,
+    user_id UUID REFERENCES auth.users(id) ON DELETE SET NULL,
+    agent_type TEXT,
+    reason TEXT NOT NULL,
+    escalated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE public.escalations ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Users can insert escalations"
+    ON public.escalations FOR INSERT
+    WITH CHECK (true);
+
+-- Indexes for optimal querying
+CREATE INDEX IF NOT EXISTS idx_conversations_user_id ON public.conversations(user_id);
+CREATE INDEX IF NOT EXISTS idx_messages_conversation_id ON public.messages(conversation_id);
+CREATE INDEX IF NOT EXISTS idx_research_sessions_user_id ON public.research_sessions(user_id);
+CREATE INDEX IF NOT EXISTS idx_support_inquiries_user_id ON public.support_inquiries(user_id);

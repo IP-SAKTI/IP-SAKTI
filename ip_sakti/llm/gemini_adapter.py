@@ -147,8 +147,9 @@ class GeminiLLMAdapter:
                 )
                 generation_config = genai.types.GenerationConfig(
                     max_output_tokens=2048,
-                    temperature=0.2,
+                    temperature=0.0,
                 )
+
 
                 response = model.generate_content(
                     user_prompt,

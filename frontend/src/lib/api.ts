@@ -51,44 +51,92 @@ const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 export const MOCK_CONVERSATIONS: Conversation[] = [];
 
 export async function listConversations(userId?: string): Promise<Conversation[]> {
-  if (typeof window !== 'undefined') {
-    try {
-      const storageKey = userId ? `ipsakti_user_history_${userId}` : 'ipsakti_user_history';
-      const stored = localStorage.getItem(storageKey);
-      if (stored) {
-        return JSON.parse(stored);
+  try {
+    const url = userId
+      ? `${API_BASE_URL}/history?user_id=${encodeURIComponent(userId)}`
+      : `${API_BASE_URL}/history`;
+    const res = await fetch(url);
+    if (res.ok) {
+      const data = await res.json();
+      if (Array.isArray(data)) {
+        return data;
       }
-    } catch (err) {
-      console.warn('Failed to read research history from local storage:', err);
     }
+  } catch (err) {
+    console.warn('FastAPI /history fetch failed:', err);
   }
   return [];
 }
 
-export async function saveConversationToStorage(conv: Conversation, userId?: string): Promise<void> {
-  if (typeof window !== 'undefined') {
-    try {
-      const storageKey = userId ? `ipsakti_user_history_${userId}` : 'ipsakti_user_history';
-      const existing = await listConversations(userId);
-      const updated = [conv, ...existing.filter((c) => c.id !== conv.id)];
-      localStorage.setItem(storageKey, JSON.stringify(updated));
-    } catch (err) {
-      console.warn('Failed to save conversation to local storage:', err);
+export async function getConversationDetailsAPI(id: string, userId?: string): Promise<Conversation | null> {
+  try {
+    const url = userId
+      ? `${API_BASE_URL}/history/${encodeURIComponent(id)}?user_id=${encodeURIComponent(userId)}`
+      : `${API_BASE_URL}/history/${encodeURIComponent(id)}`;
+    const res = await fetch(url);
+    if (res.ok) {
+      return await res.json();
     }
+  } catch (err) {
+    console.warn(`FastAPI fetch /history/${id} failed:`, err);
+  }
+  return null;
+}
+
+export async function saveConversationToStorage(conv: Conversation, userId?: string): Promise<void> {
+  try {
+    await fetch(`${API_BASE_URL}/history`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        id: conv.id,
+        title: conv.title,
+        query: conv.query,
+        user_id: userId,
+        response: conv.response,
+      }),
+    });
+  } catch (err) {
+    console.warn('FastAPI save /history failed:', err);
   }
 }
 
 export async function deleteConversationFromStorage(id: string, userId?: string): Promise<void> {
-  if (typeof window !== 'undefined') {
-    try {
-      const storageKey = userId ? `ipsakti_user_history_${userId}` : 'ipsakti_user_history';
-      const existing = await listConversations(userId);
-      const updated = existing.filter((c) => c.id !== id);
-      localStorage.setItem(storageKey, JSON.stringify(updated));
-    } catch (err) {
-      console.warn('Failed to delete conversation from local storage:', err);
-    }
+  try {
+    const url = userId
+      ? `${API_BASE_URL}/history/${encodeURIComponent(id)}?user_id=${encodeURIComponent(userId)}`
+      : `${API_BASE_URL}/history/${encodeURIComponent(id)}`;
+    await fetch(url, { method: 'DELETE' });
+  } catch (err) {
+    console.warn('FastAPI delete /history failed:', err);
   }
+}
+
+
+export async function submitContactInquiryAPI(payload: {
+  name: string;
+  email: string;
+  subject: string;
+  message: string;
+  user_id?: string;
+}): Promise<{ status: string; message: string }> {
+  try {
+    const res = await fetch(`${API_BASE_URL}/contact`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    if (res.ok) {
+      return await res.json();
+    }
+  } catch (err) {
+    console.warn('FastAPI /contact post failed, falling back to local acknowledgment:', err);
+  }
+
+  return {
+    status: 'success',
+    message: 'Your inquiry has been received. Our team will contact you shortly.',
+  };
 }
 
 export async function processQueryAPI(payload: APIQueryPayload): Promise<APIQueryResponse> {

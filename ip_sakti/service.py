@@ -1,21 +1,21 @@
 """
-ip_sakti.service — High-level application service & SQLite query persistence wrapper.
+ip_sakti.service — High-level application service & Supabase query persistence wrapper.
 
 Provides the primary application entry point (IPSAKTIService) for query handling
 and records query execution metrics, classification metadata, and responses
-into the SQLite database.
+into Supabase PostgreSQL.
 """
 
 from __future__ import annotations
 
-import json
 import logging
 from datetime import datetime, timezone
+from typing import Any
 
 from ip_sakti.llm import AnswerSynthesisService, SafeAbstentionHandler
 from ip_sakti.models.query import FinalResponse, QueryRequest
 from ip_sakti.pipeline import PipelineCoordinator
-from ip_sakti.utils.db import DatabaseManager
+from ip_sakti.utils.supabase_client import SupabaseClient
 
 logger = logging.getLogger(__name__)
 
@@ -24,29 +24,28 @@ class IPSAKTIService:
     """
     High-level application service wrapper for IP-SAKTI Sahayak.
 
-    Coordinates query processing via PipelineCoordinator and handles SQLite DB persistence.
+    Coordinates query processing via PipelineCoordinator and handles Supabase DB persistence.
     """
 
     def __init__(
         self,
         coordinator: PipelineCoordinator | None = None,
-        db_manager: DatabaseManager | None = None,
+        db_manager: Any = None,
     ) -> None:
-        """Initialise service with optional coordinator and database manager."""
-        self.db = db_manager or DatabaseManager()
-        self.db.initialise()
+        """Initialise service with optional coordinator."""
+        self.supabase_client = SupabaseClient()
 
         if coordinator is not None:
             self.coordinator = coordinator
         else:
-            abstention_hnd = SafeAbstentionHandler(db_manager=self.db)
+            abstention_hnd = SafeAbstentionHandler()
             synthesis = AnswerSynthesisService(abstention_handler=abstention_hnd)
             self.coordinator = PipelineCoordinator(synthesis_service=synthesis)
         logger.debug("IPSAKTIService initialised")
 
     def process_query(self, request: QueryRequest) -> FinalResponse:
         """
-        Process a QueryRequest through the pipeline and log to SQLite database.
+        Process a QueryRequest through the pipeline and log to Supabase PostgreSQL.
 
         Parameters
         ----------
@@ -65,59 +64,46 @@ class IPSAKTIService:
 
         now_iso = datetime.now(timezone.utc).isoformat()
 
-        # Pre-insert parent query record to satisfy foreign key constraint on escalations
-        try:
-            conn = self.db.connection
-            with conn:
-                conn.execute(
-                    """
-                    INSERT OR IGNORE INTO queries (
-                        query_id, raw_query, detected_lang, jurisdiction,
-                        formulation_cat, is_abstention, created_at
-                    ) VALUES (?, ?, ?, ?, ?, 0, ?)
-                    """,
-                    (
-                        str(request.query_id),
-                        request.raw_query,
-                        request.user_language,
-                        request.jurisdiction.value,
-                        request.formulation_category.value,
-                        now_iso,
-                    ),
+        # Log query metadata to Supabase if configured
+        if self.supabase_client.is_configured:
+            try:
+                self.supabase_client.insert(
+                    table="queries",
+                    data={
+                        "query_id": str(request.query_id),
+                        "user_id": request.user_id,
+                        "raw_query": request.raw_query,
+                        "detected_lang": request.user_language,
+                        "jurisdiction": request.jurisdiction.value if request.jurisdiction else None,
+                        "formulation_cat": request.formulation_category.value if request.formulation_category else None,
+                        "is_abstention": False,
+                        "created_at": now_iso,
+                    },
+                    use_service_role=True if self.supabase_client.service_role_key else False,
                 )
-        except Exception as exc:
-            logger.error(f"Failed to pre-log query record to database: {exc}")
+            except Exception as exc:
+                logger.warning(f"Failed to log query record to Supabase: {exc}")
 
         # Execute full pipeline
         response = self.coordinator.execute(request)
 
-        # Update query record with final execution metrics and agents
-        try:
-            agents_json = json.dumps([a.value for a in response.agents_invoked]) if response.agents_invoked else "[]"
-            confidence_score = response.confidence.score if response.confidence else None
+        if self.supabase_client.is_configured:
+            try:
+                agents_list = [a.value for a in response.agents_invoked] if response.agents_invoked else []
+                confidence_score = response.confidence.score if response.confidence else None
 
-            conn = self.db.connection
-            with conn:
-                conn.execute(
-                    """
-                    UPDATE queries SET
-                        agents_invoked = ?,
-                        is_abstention = ?,
-                        confidence_score = ?
-                    WHERE query_id = ?
-                    """,
-                    (
-                        agents_json,
-                        1 if response.is_abstention else 0,
-                        confidence_score,
-                        str(request.query_id),
-                    ),
+                self.supabase_client.update(
+                    table="queries",
+                    data={
+                        "agents_invoked": agents_list,
+                        "is_abstention": response.is_abstention,
+                        "confidence_score": confidence_score,
+                    },
+                    params={"query_id": f"eq.{request.query_id}"},
+                    use_service_role=True if self.supabase_client.service_role_key else False,
                 )
-            logger.debug(
-                "Logged query record to database",
-                extra={"query_id": str(request.query_id)},
-            )
-        except Exception as exc:
-            logger.error(f"Failed to log query record to database: {exc}")
+            except Exception as exc:
+                logger.warning(f"Failed to update query record metrics in Supabase: {exc}")
 
         return response
+

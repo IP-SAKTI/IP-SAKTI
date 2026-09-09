@@ -130,7 +130,7 @@ class ReciprocalRankFusion:
             for item in candidates.values()
         ]
 
-        fused.sort(key=lambda fc: fc.rrf_score, reverse=True)
+        fused.sort(key=lambda fc: (fc.rrf_score, fc.chunk.doc_id), reverse=True)
 
         logger.debug(
             "RRF fusion completed",

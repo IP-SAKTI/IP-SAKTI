@@ -1,37 +1,91 @@
 """
 ip_sakti.utils.supabase_chat_storage — Supabase-backed Chat Storage Adapter.
 
-Preserves the EXACT public interface of ChatStorageService while persisting
-conversations and messages to Supabase with Row Level Security and SQLite fallback.
+Persists conversations and messages to Supabase PostgreSQL (public.conversations & public.messages)
+with Row Level Security.
 """
 
 from __future__ import annotations
 
 import json
 import logging
+import re
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 from uuid import uuid4
 
-from ip_sakti.utils.chat_storage import ChatStorageService as SQLiteChatStorageService, generate_title
-from ip_sakti.utils.db import DatabaseManager
 from ip_sakti.utils.supabase_client import SupabaseClient
 
 logger = logging.getLogger(__name__)
 
 
+def generate_title(query: str) -> str:
+    """
+    Generate a concise, deterministic title from the first user query.
+
+    Does NOT call Gemini or external APIs.
+    """
+    if not query or not query.strip():
+        return "New Chat"
+
+    q_clean = query.strip()
+    q_lower = q_clean.lower()
+
+    if "patent" in q_lower and ("ayurved" in q_lower or "formulation" in q_lower or "herb" in q_lower):
+        return "Ayurvedic Patent Eligibility"
+    elif "24d" in q_lower or "form 24" in q_lower:
+        return "Form 24D Requirements"
+    elif "tkdl" in q_lower or "traditional knowledge" in q_lower:
+        return "TKDL & Patentability"
+    elif "abs" in q_lower or "biodiversity" in q_lower or "nba" in q_lower or "benefit sharing" in q_lower:
+        return "NBA & ABS Compliance"
+    elif "manufactur" in q_lower or "licens" in q_lower or "rule 158" in q_lower:
+        return "Ayurvedic Manufacturing License"
+    elif "trademark" in q_lower or "brand" in q_lower:
+        return "Ayurvedic Trademark & Brand"
+    elif "section 3" in q_lower or "3(p)" in q_lower:
+        return "Section 3(p) TK Guidance"
+
+    prefixes = [
+        r"^can i patent\s+",
+        r"^is it possible to patent\s+",
+        r"^what are the requirements for\s+",
+        r"^how does\s+",
+        r"^what is\s+",
+        r"^how to\s+",
+        r"^can i\s+",
+        r"^tell me about\s+",
+        r"^explain\s+",
+    ]
+    cleaned = q_clean
+    for pat in prefixes:
+        cleaned = re.sub(pat, "", cleaned, flags=re.IGNORECASE)
+
+    cleaned = cleaned.rstrip("?.! ")
+    if not cleaned:
+        cleaned = q_clean.rstrip("?.! ")
+
+    if len(cleaned) > 40:
+        words = cleaned[:40].rsplit(" ", 1)[0]
+        cleaned = words if words else cleaned[:40]
+
+    title = cleaned.strip().title()
+    return title if title else "New Conversation"
+
+
+
 class SupabaseChatStorageService:
     """
-    Manages persistence of conversations and messages in Supabase with SQLite fallback.
+    Manages persistence of conversations and messages in Supabase PostgreSQL.
     """
 
     def __init__(
         self,
         supabase_client: Optional[SupabaseClient] = None,
-        fallback_service: Optional[SQLiteChatStorageService] = None,
     ) -> None:
         self.client = supabase_client or SupabaseClient()
-        self.fallback = fallback_service or SQLiteChatStorageService(db_manager=DatabaseManager())
+        self._mem_convs: Dict[str, Dict[str, Any]] = {}
+        self._mem_msgs: Dict[str, List[Dict[str, Any]]] = {}
 
     @property
     def is_supabase_enabled(self) -> bool:
@@ -47,12 +101,22 @@ class SupabaseChatStorageService:
         """
         Create and persist a new conversation associated with a specific user.
         """
-        if not self.is_supabase_enabled:
-            return self.fallback.create_conversation(title=title, conversation_id=conversation_id, user_id=user_id)
-
         cid = conversation_id or str(uuid4())
         conv_title = title or "New Chat"
         now_iso = datetime.now(timezone.utc).isoformat()
+
+        if not self.is_supabase_enabled:
+            conv = {
+                "id": cid,
+                "user_id": user_id,
+                "title": conv_title,
+                "created_at": now_iso,
+                "updated_at": now_iso,
+                "messages": [],
+            }
+            self._mem_convs[cid] = conv
+            self._mem_msgs[cid] = []
+            return conv
 
         try:
             record: Dict[str, Any] = {
@@ -79,8 +143,18 @@ class SupabaseChatStorageService:
                 "messages": [],
             }
         except Exception as exc:
-            logger.error(f"Error creating conversation in Supabase: {exc}. Falling back to SQLite.")
-            return self.fallback.create_conversation(title=title, conversation_id=conversation_id, user_id=user_id)
+            logger.error(f"Error creating conversation in Supabase: {exc}")
+            conv = {
+                "id": cid,
+                "user_id": user_id,
+                "title": conv_title,
+                "created_at": now_iso,
+                "updated_at": now_iso,
+                "messages": [],
+            }
+            self._mem_convs[cid] = conv
+            self._mem_msgs[cid] = []
+            return conv
 
     def get_conversation(
         self,
@@ -91,7 +165,13 @@ class SupabaseChatStorageService:
         Fetch conversation record with all associated messages.
         """
         if not self.is_supabase_enabled:
-            return self.fallback.get_conversation(conversation_id=conversation_id, user_id=user_id)
+            conv = self._mem_convs.get(conversation_id)
+            if not conv:
+                return None
+            if user_id and conv.get("user_id") and conv.get("user_id") != user_id:
+                return None
+            conv["messages"] = self._mem_msgs.get(conversation_id, [])
+            return conv
 
         try:
             params: Dict[str, Any] = {"id": f"eq.{conversation_id}", "select": "*"}
@@ -104,12 +184,10 @@ class SupabaseChatStorageService:
                 use_service_role=True if self.client.service_role_key else False,
             )
             if not rows:
-                # If not found in Supabase, also check fallback
-                return self.fallback.get_conversation(conversation_id=conversation_id, user_id=user_id)
+                return None
 
             conv = rows[0]
 
-            # Fetch messages
             msg_params: Dict[str, Any] = {
                 "conversation_id": f"eq.{conversation_id}",
                 "order": "created_at.asc",
@@ -142,7 +220,7 @@ class SupabaseChatStorageService:
             }
         except Exception as exc:
             logger.error(f"Error fetching conversation {conversation_id} from Supabase: {exc}")
-            return self.fallback.get_conversation(conversation_id=conversation_id, user_id=user_id)
+            return self._mem_convs.get(conversation_id)
 
     def list_conversations(
         self,
@@ -153,7 +231,11 @@ class SupabaseChatStorageService:
         Fetch most recently updated conversations for the active user.
         """
         if not self.is_supabase_enabled:
-            return self.fallback.list_conversations(user_id=user_id, limit=limit)
+            convs = list(self._mem_convs.values())
+            if user_id:
+                convs = [c for c in convs if c.get("user_id") == user_id]
+            convs.sort(key=lambda x: x.get("updated_at", ""), reverse=True)
+            return convs[:limit]
 
         try:
             params: Dict[str, Any] = {
@@ -169,8 +251,6 @@ class SupabaseChatStorageService:
                 params=params,
                 use_service_role=True if self.client.service_role_key else False,
             )
-            if not rows and user_id is None:
-                return self.fallback.list_conversations(user_id=user_id, limit=limit)
 
             return [
                 {
@@ -184,7 +264,11 @@ class SupabaseChatStorageService:
             ]
         except Exception as exc:
             logger.error(f"Error listing conversations from Supabase: {exc}")
-            return self.fallback.list_conversations(user_id=user_id, limit=limit)
+            convs = list(self._mem_convs.values())
+            if user_id:
+                convs = [c for c in convs if c.get("user_id") == user_id]
+            convs.sort(key=lambda x: x.get("updated_at", ""), reverse=True)
+            return convs[:limit]
 
     def add_message(
         self,
@@ -197,21 +281,31 @@ class SupabaseChatStorageService:
         """
         Save a message to a conversation.
         """
-        if not self.is_supabase_enabled:
-            return self.fallback.add_message(
-                conversation_id=conversation_id,
-                role=role,
-                content=content,
-                metadata=metadata,
-                user_id=user_id,
-            )
-
         msg_id = str(uuid4())
         now_iso = datetime.now(timezone.utc).isoformat()
         content_text = content if isinstance(content, str) else json.dumps(content)
 
+        if not self.is_supabase_enabled:
+            if conversation_id not in self._mem_convs:
+                self.create_conversation(title="New Chat", conversation_id=conversation_id, user_id=user_id)
+            msg = {
+                "id": msg_id,
+                "conversation_id": conversation_id,
+                "role": role,
+                "content": content_text,
+                "timestamp": now_iso,
+                "metadata": metadata or (content if isinstance(content, dict) else None),
+            }
+            self._mem_msgs.setdefault(conversation_id, []).append(msg)
+            if conversation_id in self._mem_convs:
+                self._mem_convs[conversation_id]["updated_at"] = now_iso
+                if role == "user":
+                    curr_title = self._mem_convs[conversation_id].get("title", "")
+                    if curr_title in ("New Chat", "New Conversation") or not curr_title:
+                        self._mem_convs[conversation_id]["title"] = generate_title(content_text)
+            return msg
+
         try:
-            # Ensure conversation exists
             conv_rows = self.client.select(
                 table="conversations",
                 params={"id": f"eq.{conversation_id}", "select": "id,title"},
@@ -253,7 +347,6 @@ class SupabaseChatStorageService:
                 use_service_role=True if self.client.service_role_key else False,
             )
 
-            # Update conversation updated_at and deterministic title
             if role == "user" and (current_title in ("New Chat", "New Conversation") or not current_title):
                 new_title = generate_title(content_text if isinstance(content_text, str) else "")
                 self.client.update(
@@ -279,14 +372,17 @@ class SupabaseChatStorageService:
                 "metadata": metadata or (content if isinstance(content, dict) else None),
             }
         except Exception as exc:
-            logger.error(f"Error adding message in Supabase: {exc}. Falling back to SQLite.")
-            return self.fallback.add_message(
-                conversation_id=conversation_id,
-                role=role,
-                content=content,
-                metadata=metadata,
-                user_id=user_id,
-            )
+            logger.error(f"Error adding message in Supabase: {exc}")
+            msg = {
+                "id": msg_id,
+                "conversation_id": conversation_id,
+                "role": role,
+                "content": content_text,
+                "timestamp": now_iso,
+                "metadata": metadata or (content if isinstance(content, dict) else None),
+            }
+            self._mem_msgs.setdefault(conversation_id, []).append(msg)
+            return msg
 
     def delete_conversation(
         self,
@@ -296,22 +392,23 @@ class SupabaseChatStorageService:
         """
         Delete a conversation and its messages from storage if user owns it.
         """
+        self._mem_convs.pop(conversation_id, None)
+        self._mem_msgs.pop(conversation_id, None)
+
         if not self.is_supabase_enabled:
-            return self.fallback.delete_conversation(conversation_id=conversation_id, user_id=user_id)
+            return True
 
         try:
             params: Dict[str, Any] = {"id": f"eq.{conversation_id}"}
             if user_id:
                 params["user_id"] = f"eq.{user_id}"
 
-            deleted = self.client.delete(
+            return self.client.delete(
                 table="conversations",
                 params=params,
                 use_service_role=True if self.client.service_role_key else False,
             )
-            # Also clean up local SQLite if present
-            self.fallback.delete_conversation(conversation_id=conversation_id, user_id=user_id)
-            return deleted
         except Exception as exc:
             logger.error(f"Error deleting conversation {conversation_id} from Supabase: {exc}")
-            return self.fallback.delete_conversation(conversation_id=conversation_id, user_id=user_id)
+            return False
+

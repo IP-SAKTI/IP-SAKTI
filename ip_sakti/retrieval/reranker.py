@@ -107,7 +107,7 @@ class CrossEncoderReranker:
             (cand, float(score)) for cand, score in zip(candidates, scores)
         ]
 
-        scored_candidates.sort(key=lambda item: item[1], reverse=True)
+        scored_candidates.sort(key=lambda item: (item[1], item[0].chunk.doc_id), reverse=True)
 
         selected = scored_candidates[:top_k]
 

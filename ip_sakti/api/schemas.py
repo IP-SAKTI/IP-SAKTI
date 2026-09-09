@@ -85,3 +85,54 @@ class APIQueryResponse(BaseModel):
         default=None,
         description="Live web/patent research execution metadata.",
     )
+
+
+class RegisterRequest(BaseModel):
+    name: str
+    email: str
+    password: str
+    confirm_password: Optional[str] = None
+    terms_accepted: bool = True
+
+
+class LoginRequest(BaseModel):
+    email: str
+    password: str
+
+
+class AuthResponse(BaseModel):
+    user: dict
+    token: str
+    message: Optional[str] = None
+
+
+class ProfileUpdateRequest(BaseModel):
+    user_id: Optional[str] = None
+    fullName: Optional[str] = None
+    email: Optional[str] = None
+    organization: Optional[str] = None
+    role: Optional[str] = None
+    bio: Optional[str] = None
+    avatarUrl: Optional[str] = None
+
+
+class ContactRequest(BaseModel):
+    name: str
+    email: str
+    subject: str
+    message: str
+    user_id: Optional[str] = None
+
+
+class ContactResponse(BaseModel):
+    status: str = "success"
+    message: str = "Inquiry received successfully."
+
+
+class SaveHistoryRequest(BaseModel):
+    id: str
+    title: str
+    query: Optional[str] = None
+    user_id: Optional[str] = None
+    response: Optional[dict] = None
+

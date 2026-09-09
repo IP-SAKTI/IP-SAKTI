@@ -12,6 +12,7 @@ import { useAuth } from '@/context/AuthContext';
 import {
   sendQueryToAPI,
   listConversations,
+  getConversationDetailsAPI,
   saveConversationToStorage,
   deleteConversationFromStorage,
   APIQueryResponse,
@@ -128,13 +129,38 @@ export default function DashboardPage() {
     setStages(DEFAULT_STAGES);
   };
 
-  const handleSelectConversation = (id: string) => {
+  const handleSelectConversation = async (id: string) => {
     setActiveConversationId(id);
     const selected = conversations.find((c) => c.id === id);
     if (selected) {
       setCurrentQuery(selected.query || selected.title);
       if (selected.response) {
         setActiveResponse(selected.response);
+      } else {
+        try {
+          const detail: any = await getConversationDetailsAPI(id, user?.id);
+          if (detail && detail.messages && detail.messages.length > 0) {
+            const lastAssistantMsg = [...detail.messages].reverse().find((m: any) => m.role === 'assistant');
+            const userMsg = detail.messages.find((m: any) => m.role === 'user');
+            if (userMsg) setCurrentQuery(userMsg.content);
+            if (lastAssistantMsg && lastAssistantMsg.metadata?.response) {
+              setActiveResponse(lastAssistantMsg.metadata.response);
+            } else if (lastAssistantMsg) {
+              setActiveResponse({
+                query: userMsg?.content || selected.title,
+                answer: lastAssistantMsg.content,
+                confidence: 0.9,
+                evidence: [],
+                citations: [],
+                agents_invoked: ['IP Agent'],
+                is_abstention: false,
+                disclaimer: 'Retrieved conversation history from database',
+              });
+            }
+          }
+        } catch (err) {
+          console.error('Failed to load conversation details:', err);
+        }
       }
     }
   };

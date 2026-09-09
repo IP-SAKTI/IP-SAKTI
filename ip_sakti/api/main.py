@@ -13,15 +13,30 @@ from fastapi import FastAPI, HTTPException, Query, Response, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse
 
-from ip_sakti.api.schemas import APIQueryRequest, APIQueryResponse, HealthResponse
+from ip_sakti.api.schemas import (
+    APIQueryRequest,
+    APIQueryResponse,
+    HealthResponse,
+    RegisterRequest,
+    LoginRequest,
+    AuthResponse,
+    ProfileUpdateRequest,
+    ContactRequest,
+    ContactResponse,
+    SaveHistoryRequest,
+)
 from ip_sakti.models.query import FormulationCategory, Jurisdiction, QueryRequest, SourceViewerResponse
 from ip_sakti.retrieval.sources import SourceRegistry
 from ip_sakti.service import IPSAKTIService
+from ip_sakti.utils.auth import AuthService
+from ip_sakti.utils.chat_storage import ChatStorageService
 
 logger = logging.getLogger(__name__)
 
-# Singleton service instance
+# Singleton service instances
 service: IPSAKTIService | None = None
+_auth_service: AuthService | None = None
+_chat_storage_service: ChatStorageService | None = None
 
 
 def get_service() -> IPSAKTIService:
@@ -30,6 +45,22 @@ def get_service() -> IPSAKTIService:
     if service is None:
         service = IPSAKTIService()
     return service
+
+
+def get_auth_service() -> AuthService:
+    """Return initialised AuthService instance."""
+    global _auth_service
+    if _auth_service is None:
+        _auth_service = AuthService()
+    return _auth_service
+
+
+def get_chat_storage_service() -> ChatStorageService:
+    """Return initialised ChatStorageService instance."""
+    global _chat_storage_service
+    if _chat_storage_service is None:
+        _chat_storage_service = ChatStorageService()
+    return _chat_storage_service
 
 
 @asynccontextmanager
@@ -149,6 +180,123 @@ async def process_query(payload: APIQueryRequest) -> APIQueryResponse:
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"An internal error occurred while processing the query: {exc}",
         )
+
+
+# ---------------------------------------------------------------------------
+# Authentication endpoints
+# ---------------------------------------------------------------------------
+
+@app.post("/auth/register", response_model=AuthResponse, tags=["Authentication"])
+async def register(payload: RegisterRequest) -> AuthResponse:
+    """Register new user account."""
+    auth_srv = get_auth_service()
+    user_data, error_msg = auth_srv.register_user(
+        name=payload.name,
+        email=payload.email,
+        password=payload.password,
+        confirm_password=payload.confirm_password or payload.password,
+        terms_accepted=payload.terms_accepted,
+    )
+    if error_msg:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=error_msg)
+
+    token = f"token-{user_data['id']}"
+    return AuthResponse(user=user_data, token=token, message="Registration successful.")
+
+
+@app.post("/auth/login", response_model=AuthResponse, tags=["Authentication"])
+async def login(payload: LoginRequest) -> AuthResponse:
+    """Authenticate existing user credentials."""
+    auth_srv = get_auth_service()
+    user_data, error_msg = auth_srv.authenticate_user(email=payload.email, password=payload.password)
+    if error_msg:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=error_msg)
+
+    token = f"token-{user_data['id']}"
+    return AuthResponse(user=user_data, token=token, message="Login successful.")
+
+
+# ---------------------------------------------------------------------------
+# Research History endpoints
+# ---------------------------------------------------------------------------
+
+@app.get("/history", tags=["Research History"])
+async def get_history(user_id: Optional[str] = Query(default=None), limit: int = 50):
+    """Retrieve user research history."""
+    chat_srv = get_chat_storage_service()
+    return chat_srv.list_conversations(user_id=user_id, limit=limit)
+
+
+@app.get("/history/{conversation_id}", tags=["Research History"])
+async def get_history_detail(conversation_id: str, user_id: Optional[str] = Query(default=None)):
+    """Retrieve detailed message history for a single conversation."""
+    chat_srv = get_chat_storage_service()
+    conv = chat_srv.get_conversation(conversation_id=conversation_id, user_id=user_id)
+    if not conv:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Conversation not found")
+    return conv
+
+
+@app.post("/history", tags=["Research History"])
+async def save_history(payload: SaveHistoryRequest):
+    """Save or update a research query in history."""
+    chat_srv = get_chat_storage_service()
+    conv = chat_srv.create_conversation(
+        title=payload.title, conversation_id=payload.id, user_id=payload.user_id
+    )
+    if payload.response:
+        chat_srv.add_message(
+            conversation_id=payload.id,
+            role="assistant",
+            content=payload.response,
+            user_id=payload.user_id,
+        )
+    return {"status": "success", "conversation": conv}
+
+
+@app.delete("/history/{conversation_id}", tags=["Research History"])
+async def delete_history(conversation_id: str, user_id: Optional[str] = Query(default=None)):
+    """Delete a research query record from history."""
+    chat_srv = get_chat_storage_service()
+    if hasattr(chat_srv, "delete_conversation"):
+        chat_srv.delete_conversation(conversation_id=conversation_id, user_id=user_id)
+    return {"status": "success", "id": conversation_id}
+
+
+# ---------------------------------------------------------------------------
+# Contact Support endpoint
+# ---------------------------------------------------------------------------
+
+@app.post("/contact", response_model=ContactResponse, tags=["Support"])
+async def contact_support(payload: ContactRequest) -> ContactResponse:
+    """Record contact support submission to Supabase PostgreSQL."""
+    logger.info(f"Support message from {payload.name} ({payload.email}) regarding '{payload.subject}'")
+    
+    from ip_sakti.utils.supabase_client import SupabaseClient
+    from uuid import uuid4
+    from datetime import datetime, timezone
+    
+    sp_client = SupabaseClient()
+    if sp_client.is_configured:
+        try:
+            sp_client.insert(
+                table="support_inquiries",
+                data={
+                    "id": str(uuid4()),
+                    "name": payload.name,
+                    "email": payload.email,
+                    "subject": payload.subject,
+                    "message": payload.message,
+                    "user_id": payload.user_id,
+                    "created_at": datetime.now(timezone.utc).isoformat(),
+                },
+                use_service_role=True if sp_client.service_role_key else False,
+            )
+        except Exception as exc:
+            logger.warning(f"Could not persist support inquiry to Supabase: {exc}")
+
+    return ContactResponse(status="success", message="Your inquiry has been received. Our team will contact you shortly.")
+
 
 
 # ---------------------------------------------------------------------------
