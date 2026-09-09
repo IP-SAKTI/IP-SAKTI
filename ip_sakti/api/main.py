@@ -217,7 +217,7 @@ async def register(payload: RegisterRequest) -> AuthResponse:
     if error_msg:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=error_msg)
 
-    token = user_data.get("access_token") or f"token-{user_data['id']}"
+    token = user_data.get("access_token") or ""
     return AuthResponse(user=user_data, token=token, message="Registration successful.")
 
 
@@ -229,7 +229,7 @@ async def login(payload: LoginRequest) -> AuthResponse:
     if error_msg:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=error_msg)
 
-    token = user_data.get("access_token") or f"token-{user_data['id']}"
+    token = user_data.get("access_token") or ""
     return AuthResponse(user=user_data, token=token, message="Login successful.")
 
 

@@ -144,17 +144,7 @@ class SupabaseAuthService:
         clean_email = email.strip().lower()
 
         if not self.is_supabase_enabled:
-            if clean_email in self._mem_users:
-                return self._mem_users[clean_email], None
-            # Return fresh user session for local dev
-            user_rec = {
-                "id": f"usr-{clean_email.split('@')[0]}",
-                "name": clean_email.split('@')[0].capitalize(),
-                "email": clean_email,
-                "created_at": datetime.now(timezone.utc).isoformat(),
-            }
-            self._mem_users[clean_email] = user_rec
-            return user_rec, None
+            return None, "Authentication service is not configured."
 
         try:
             res = self.client.sign_in_with_password(clean_email, password)
@@ -162,41 +152,36 @@ class SupabaseAuthService:
             user_meta = user_obj.get("user_metadata", {})
             user_name = user_meta.get("display_name") or user_meta.get("name") or clean_email.split("@")[0]
             user_id = user_obj.get("id")
+            access_token = res.get("access_token")
+
+            if not access_token or not user_id:
+                return None, "Supabase authentication returned invalid session payload."
 
             return {
                 "id": user_id,
                 "name": user_name,
                 "email": clean_email,
-                "access_token": res.get("access_token"),
+                "access_token": access_token,
                 "refresh_token": res.get("refresh_token"),
             }, None
 
-        except ValueError as val_err:
-            if clean_email in self._mem_users:
-                return self._mem_users[clean_email], None
-            return None, str(val_err)
-        except Exception as exc:
-            if clean_email in self._mem_users:
-                return self._mem_users[clean_email], None
-            logger.error(f"Supabase authentication error: {exc}")
+        except (ValueError, Exception) as exc:
+            logger.error(f"Supabase authentication error for {clean_email}: {exc}")
+            err_msg = str(exc)
+            if "invalid login credentials" in err_msg.lower() or "400" in err_msg:
+                return None, "Invalid login credentials"
             return None, f"Authentication failed: {exc}"
 
     def verify_session(self, access_token: str) -> Optional[Dict[str, Any]]:
         """
         Verify persistent session via access token.
         """
-        if not access_token:
+        if not access_token or not self.is_supabase_enabled:
             return None
-        if not self.is_supabase_enabled:
-            return {"id": "local-usr", "name": "Local User", "email": "user@ipsakti.gov.in"}
-
-        if access_token.startswith("token-"):
-            uid = access_token.replace("token-", "").strip()
-            return {"id": uid, "name": "Authenticated User", "email": "user@ipsakti.gov.in"}
 
         try:
             user_obj = self.client.get_user(access_token)
-            if not user_obj:
+            if not user_obj or "id" not in user_obj:
                 return None
             user_meta = user_obj.get("user_metadata", {})
             user_name = user_meta.get("display_name") or user_meta.get("name") or user_obj.get("email", "").split("@")[0]

@@ -143,30 +143,17 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         return true;
       }
     } catch (err) {
-      console.warn('FastAPI auth login failed, falling back to client session:', err);
+      console.warn('FastAPI auth login error:', err);
     }
 
-    // Local fallback for offline/test mode
-    const sessionData: UserSession = {
-      id: `usr-${Date.now()}`,
-      email: cleanEmail,
-    };
-
-    const profileData: UserProfile = {
-      fullName: cleanEmail.split('@')[0],
-      email: cleanEmail,
-      organization: 'IP-SAKTI',
-      role: 'Researcher',
-      bio: '',
-      avatarUrl: '',
-    };
-
-    setUser(sessionData);
-    setProfile(profileData);
-    localStorage.setItem('ipsakti_auth_session', JSON.stringify(sessionData));
-    localStorage.setItem('ipsakti_user_profile', JSON.stringify(profileData));
+    // Strictly reject invalid credentials without fallback
+    setUser(null);
+    setProfile(null);
+    localStorage.removeItem('ipsakti_auth_token');
+    localStorage.removeItem('ipsakti_auth_session');
+    localStorage.removeItem('ipsakti_user_profile');
     setIsLoading(false);
-    return true;
+    return false;
   };
 
   const register = async (fullNameInput: string, emailInput: string, passwordInput?: string): Promise<boolean> => {
@@ -213,30 +200,13 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         return true;
       }
     } catch (err) {
-      console.warn('FastAPI auth register failed, falling back to client session:', err);
+      console.warn('FastAPI auth register error:', err);
     }
 
-    // Local fallback
-    const sessionData: UserSession = {
-      id: `usr-${Date.now()}`,
-      email: cleanEmail,
-    };
-
-    const profileData: UserProfile = {
-      fullName: cleanName,
-      email: cleanEmail,
-      organization: 'IP-SAKTI',
-      role: 'Researcher',
-      bio: '',
-      avatarUrl: '',
-    };
-
-    setUser(sessionData);
-    setProfile(profileData);
-    localStorage.setItem('ipsakti_auth_session', JSON.stringify(sessionData));
-    localStorage.setItem('ipsakti_user_profile', JSON.stringify(profileData));
+    setUser(null);
+    setProfile(null);
     setIsLoading(false);
-    return true;
+    return false;
   };
 
   const updateProfile = async (updated: Partial<UserProfile>): Promise<boolean> => {
