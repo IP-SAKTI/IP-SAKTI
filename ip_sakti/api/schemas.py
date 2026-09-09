@@ -64,8 +64,8 @@ class APIQueryResponse(BaseModel):
     query_id: UUID = Field(..., description="Unique query execution UUID.")
     answer: str = Field(..., description="Generated answer or safe abstention text.")
     is_abstention: bool = Field(..., description="True if system safely declined to answer.")
-    confidence: Optional[ConfidenceResult] = Field(
-        default=None, description="Confidence assessment metrics."
+    confidence: Optional[float] = Field(
+        default=None, description="Canonical confidence score between 0.0 and 1.0."
     )
     evidence: list[EvidenceChunk] = Field(
         default_factory=list, description="Source-grounded evidence chunks."

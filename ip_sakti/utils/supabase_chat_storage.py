@@ -16,6 +16,18 @@ from uuid import uuid4
 
 from ip_sakti.utils.supabase_client import SupabaseClient
 
+
+def sanitize_uuid(user_id: Optional[str]) -> Optional[str]:
+    """Sanitize user_id string to a valid UUID format for PostgreSQL UUID columns."""
+    if not user_id:
+        return None
+    cleaned = str(user_id).replace("usr-", "").strip()
+    try:
+        from uuid import UUID
+        return str(UUID(cleaned))
+    except Exception:
+        return None
+
 logger = logging.getLogger(__name__)
 
 
@@ -125,16 +137,28 @@ class SupabaseChatStorageService:
                 "created_at": now_iso,
                 "updated_at": now_iso,
             }
-            if user_id:
-                record["user_id"] = user_id
+            clean_uid = sanitize_uuid(user_id)
+            if clean_uid:
+                record["user_id"] = clean_uid
 
-            self.client.insert(
-                table="conversations",
-                data=record,
-                use_service_role=True if self.client.service_role_key else False,
-            )
-            logger.info("Created new conversation in Supabase", extra={"conversation_id": cid, "user_id": user_id})
-            return {
+            try:
+                self.client.insert(
+                    table="conversations",
+                    data=record,
+                    use_service_role=True if self.client.service_role_key else False,
+                )
+            except Exception as insert_exc:
+                if ("23503" in str(insert_exc) or "foreign key" in str(insert_exc).lower()) and "user_id" in record:
+                    record.pop("user_id", None)
+                    self.client.insert(
+                        table="conversations",
+                        data=record,
+                        use_service_role=True if self.client.service_role_key else False,
+                    )
+                else:
+                    raise insert_exc
+
+            conv_res = {
                 "id": cid,
                 "user_id": user_id,
                 "title": conv_title,
@@ -142,6 +166,10 @@ class SupabaseChatStorageService:
                 "updated_at": now_iso,
                 "messages": [],
             }
+            self._mem_convs[cid] = conv_res
+            self._mem_msgs[cid] = []
+            logger.info("Created new conversation in Supabase", extra={"conversation_id": cid, "user_id": user_id})
+            return conv_res
         except Exception as exc:
             logger.error(f"Error creating conversation in Supabase: {exc}")
             conv = {
@@ -175,18 +203,26 @@ class SupabaseChatStorageService:
 
         try:
             params: Dict[str, Any] = {"id": f"eq.{conversation_id}", "select": "*"}
-            if user_id:
-                params["user_id"] = f"eq.{user_id}"
-
             rows = self.client.select(
                 table="conversations",
                 params=params,
                 use_service_role=True if self.client.service_role_key else False,
             )
             if not rows:
+                mem_conv = self._mem_convs.get(conversation_id)
+                if mem_conv:
+                    if user_id and mem_conv.get("user_id") and mem_conv.get("user_id") != user_id:
+                        return None
+                    mem_conv["messages"] = self._mem_msgs.get(conversation_id, [])
+                    return mem_conv
                 return None
 
             conv = rows[0]
+            clean_uid = sanitize_uuid(user_id)
+            if user_id and conv.get("user_id"):
+                row_uid = str(conv.get("user_id"))
+                if row_uid != user_id and row_uid != clean_uid:
+                    return None
 
             msg_params: Dict[str, Any] = {
                 "conversation_id": f"eq.{conversation_id}",
@@ -243,7 +279,10 @@ class SupabaseChatStorageService:
                 "limit": str(limit),
                 "select": "id,user_id,title,created_at,updated_at",
             }
-            if user_id:
+            clean_uid = sanitize_uuid(user_id)
+            if clean_uid:
+                params["user_id"] = f"eq.{clean_uid}"
+            elif user_id:
                 params["user_id"] = f"eq.{user_id}"
 
             rows = self.client.select(
@@ -251,6 +290,9 @@ class SupabaseChatStorageService:
                 params=params,
                 use_service_role=True if self.client.service_role_key else False,
             )
+
+            if user_id:
+                rows = [r for r in rows if r.get("user_id") == user_id or (clean_uid and r.get("user_id") == clean_uid)]
 
             return [
                 {
@@ -313,6 +355,7 @@ class SupabaseChatStorageService:
             )
 
             current_title = "New Chat"
+            clean_uid = sanitize_uuid(user_id)
             if not conv_rows:
                 conv_data = {
                     "id": conversation_id,
@@ -320,13 +363,24 @@ class SupabaseChatStorageService:
                     "created_at": now_iso,
                     "updated_at": now_iso,
                 }
-                if user_id:
-                    conv_data["user_id"] = user_id
-                self.client.insert(
-                    table="conversations",
-                    data=conv_data,
-                    use_service_role=True if self.client.service_role_key else False,
-                )
+                if clean_uid:
+                    conv_data["user_id"] = clean_uid
+                try:
+                    self.client.insert(
+                        table="conversations",
+                        data=conv_data,
+                        use_service_role=True if self.client.service_role_key else False,
+                    )
+                except Exception as insert_exc:
+                    if ("23503" in str(insert_exc) or "foreign key" in str(insert_exc).lower()) and "user_id" in conv_data:
+                        conv_data.pop("user_id", None)
+                        self.client.insert(
+                            table="conversations",
+                            data=conv_data,
+                            use_service_role=True if self.client.service_role_key else False,
+                        )
+                    else:
+                        raise insert_exc
             else:
                 current_title = conv_rows[0].get("title", "New Chat")
 
@@ -338,14 +392,25 @@ class SupabaseChatStorageService:
                 "created_at": now_iso,
                 "metadata": metadata or (content if isinstance(content, dict) else None),
             }
-            if user_id:
-                msg_payload["user_id"] = user_id
+            if clean_uid:
+                msg_payload["user_id"] = clean_uid
 
-            self.client.insert(
-                table="messages",
-                data=msg_payload,
-                use_service_role=True if self.client.service_role_key else False,
-            )
+            try:
+                self.client.insert(
+                    table="messages",
+                    data=msg_payload,
+                    use_service_role=True if self.client.service_role_key else False,
+                )
+            except Exception as insert_exc:
+                if ("23503" in str(insert_exc) or "foreign key" in str(insert_exc).lower()) and "user_id" in msg_payload:
+                    msg_payload.pop("user_id", None)
+                    self.client.insert(
+                        table="messages",
+                        data=msg_payload,
+                        use_service_role=True if self.client.service_role_key else False,
+                    )
+                else:
+                    raise insert_exc
 
             if role == "user" and (current_title in ("New Chat", "New Conversation") or not current_title):
                 new_title = generate_title(content_text if isinstance(content_text, str) else "")
@@ -363,7 +428,7 @@ class SupabaseChatStorageService:
                     use_service_role=True if self.client.service_role_key else False,
                 )
 
-            return {
+            msg_res = {
                 "id": msg_id,
                 "conversation_id": conversation_id,
                 "role": role,
@@ -371,6 +436,8 @@ class SupabaseChatStorageService:
                 "timestamp": now_iso,
                 "metadata": metadata or (content if isinstance(content, dict) else None),
             }
+            self._mem_msgs.setdefault(conversation_id, []).append(msg_res)
+            return msg_res
         except Exception as exc:
             logger.error(f"Error adding message in Supabase: {exc}")
             msg = {

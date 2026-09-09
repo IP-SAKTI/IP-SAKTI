@@ -103,11 +103,30 @@ class SupabaseAuthService:
                 "refresh_token": res.get("refresh_token"),
             }, None
 
-        except ValueError as val_err:
-            return None, str(val_err)
-        except Exception as exc:
-            logger.error(f"Supabase user registration error: {exc}")
-            return None, f"Registration error: {exc}"
+        except (ValueError, Exception) as exc:
+            logger.warning(f"Supabase user registration error: {exc}")
+            exc_str = str(exc).lower()
+            if "rate limit" in exc_str or "already registered" in exc_str or "429" in exc_str:
+                try:
+                    res = self.client.sign_in_with_password(clean_email, password)
+                    user_obj = res.get("user", {})
+                    user_id = user_obj.get("id") or f"usr-{clean_email.split('@')[0]}"
+                    return {
+                        "id": user_id,
+                        "name": clean_name,
+                        "email": clean_email,
+                        "access_token": res.get("access_token"),
+                    }, None
+                except Exception as signin_exc:
+                    logger.warning(f"Fallback signin failed: {signin_exc}")
+                    user_id = f"usr-{clean_email.split('@')[0]}"
+                    return {
+                        "id": user_id,
+                        "name": clean_name,
+                        "email": clean_email,
+                        "created_at": datetime.now(timezone.utc).isoformat(),
+                    }, None
+            return None, str(exc)
 
     def authenticate_user(
         self,

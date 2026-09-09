@@ -161,11 +161,20 @@ async def process_query(payload: APIQueryRequest) -> APIQueryResponse:
             f"IsAbstention: {final_resp.is_abstention} | EvidenceCount: {len(final_resp.evidence)}"
         )
 
+        # Extract canonical float confidence score
+        conf_score = None
+        if hasattr(final_resp.confidence, "score"):
+            conf_score = float(final_resp.confidence.score)
+        elif isinstance(final_resp.confidence, (int, float)):
+            conf_score = float(final_resp.confidence)
+        elif isinstance(final_resp.confidence, dict) and "score" in final_resp.confidence:
+            conf_score = float(final_resp.confidence["score"])
+
         return APIQueryResponse(
             query_id=final_resp.query_id,
             answer=final_resp.answer,
             is_abstention=final_resp.is_abstention,
-            confidence=final_resp.confidence,
+            confidence=conf_score,
             evidence=final_resp.evidence,
             citations=final_resp.citations,
             agents_invoked=agents_str,
@@ -233,7 +242,9 @@ async def get_history_detail(conversation_id: str, user_id: Optional[str] = Quer
     chat_srv = get_chat_storage_service()
     conv = chat_srv.get_conversation(conversation_id=conversation_id, user_id=user_id)
     if not conv:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Conversation not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Conversation not found or access denied")
+    if user_id and conv.get("user_id") and conv.get("user_id") != user_id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
     return conv
 
 
@@ -244,11 +255,20 @@ async def save_history(payload: SaveHistoryRequest):
     conv = chat_srv.create_conversation(
         title=payload.title, conversation_id=payload.id, user_id=payload.user_id
     )
+    if payload.query:
+        chat_srv.add_message(
+            conversation_id=payload.id,
+            role="user",
+            content=payload.query,
+            user_id=payload.user_id,
+        )
     if payload.response:
+        content_text = payload.response.get("answer") if isinstance(payload.response, dict) else str(payload.response)
         chat_srv.add_message(
             conversation_id=payload.id,
             role="assistant",
-            content=payload.response,
+            content=content_text,
+            metadata={"response": payload.response},
             user_id=payload.user_id,
         )
     return {"status": "success", "conversation": conv}
@@ -258,6 +278,9 @@ async def save_history(payload: SaveHistoryRequest):
 async def delete_history(conversation_id: str, user_id: Optional[str] = Query(default=None)):
     """Delete a research query record from history."""
     chat_srv = get_chat_storage_service()
+    conv = chat_srv.get_conversation(conversation_id=conversation_id, user_id=user_id)
+    if user_id and conv and conv.get("user_id") and conv.get("user_id") != user_id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
     if hasattr(chat_srv, "delete_conversation"):
         chat_srv.delete_conversation(conversation_id=conversation_id, user_id=user_id)
     return {"status": "success", "id": conversation_id}

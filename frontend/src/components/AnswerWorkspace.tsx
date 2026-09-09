@@ -29,7 +29,26 @@ export default function AnswerWorkspace({
   response,
   onSaveResearch,
 }: AnswerWorkspaceProps) {
-  const confidencePercentage = Math.round((response.confidence || 0) * 100);
+  // Safely extract numeric confidence value
+  let rawConfidenceNum: number | null = null;
+  if (typeof response.confidence === 'number' && !isNaN(response.confidence)) {
+    rawConfidenceNum = response.confidence;
+  } else if (typeof response.confidence === 'object' && response.confidence !== null) {
+    const scoreVal = (response.confidence as any).score;
+    if (typeof scoreVal === 'number' && !isNaN(scoreVal)) {
+      rawConfidenceNum = scoreVal;
+    }
+  }
+
+  const hasValidConfidence = rawConfidenceNum !== null;
+  const confidencePct = hasValidConfidence ? (rawConfidenceNum! * 100).toFixed(2) : '0';
+  const confidenceLabel = hasValidConfidence
+    ? rawConfidenceNum! >= 0.70
+      ? 'High'
+      : rawConfidenceNum! >= 0.40
+      ? 'Moderate'
+      : 'Low'
+    : 'Unavailable';
 
   // Extract key findings bullet points from answer if available
   const keyFindings = response.answer
@@ -74,15 +93,15 @@ export default function AnswerWorkspace({
             })}
 
             {/* Confidence Score */}
-            {response.confidence !== undefined && response.confidence !== null ? (
+            {hasValidConfidence ? (
               <div className="flex items-center gap-1.5 bg-[#003E29] text-white text-xs font-semibold px-3 py-1 rounded-md shadow-xs">
                 <ShieldCheck className="w-3.5 h-3.5 text-emerald-300" />
-                <span>Confidence: {confidencePercentage}% ({confidencePercentage >= 80 ? 'High' : 'Moderate'})</span>
+                <span>Confidence: {confidencePct}% ({confidenceLabel})</span>
               </div>
             ) : (
               <div className="flex items-center gap-1.5 bg-gray-100 text-gray-700 text-xs font-medium px-2.5 py-1 rounded-md">
                 <Info className="w-3.5 h-3.5" />
-                <span>Confidence unavailable</span>
+                <span>Confidence: Unavailable</span>
               </div>
             )}
           </div>
