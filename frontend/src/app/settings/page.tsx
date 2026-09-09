@@ -8,17 +8,20 @@ import HeaderUserProfile from '@/components/HeaderUserProfile';
 import BotanicalBackground from '@/components/BotanicalBackground';
 import { Conversation, listConversations, MOCK_CONVERSATIONS } from '@/lib/api';
 
+import { useAuth } from '@/context/AuthContext';
+
 export default function SettingsPage() {
+  const { user, profile: authProfile, updateProfile } = useAuth();
   const [conversations, setConversations] = useState<Conversation[]>(MOCK_CONVERSATIONS);
   const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
 
   // Profile Form States
-  const [fullName, setFullName] = useState('manaswitha');
-  const [email, setEmail] = useState('manaswitha@ipsakti.gov.in');
-  const [organization, setOrganization] = useState('IP-SAKTI');
-  const [role, setRole] = useState('Researcher');
-  const [bio, setBio] = useState('');
-  const [avatarUrl, setAvatarUrl] = useState<string>('');
+  const [fullName, setFullName] = useState(authProfile?.fullName || 'User');
+  const [email, setEmail] = useState(authProfile?.email || user?.email || '');
+  const [organization, setOrganization] = useState(authProfile?.organization || 'IP-SAKTI');
+  const [role, setRole] = useState(authProfile?.role || 'Researcher');
+  const [bio, setBio] = useState(authProfile?.bio || '');
+  const [avatarUrl, setAvatarUrl] = useState<string>(authProfile?.avatarUrl || '');
 
   // UI Feedback States
   const [isSaving, setIsSaving] = useState(false);
@@ -26,7 +29,18 @@ export default function SettingsPage() {
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Load existing profile from storage if present
+  // Sync profile when auth state resolves
+  useEffect(() => {
+    if (authProfile) {
+      setFullName(authProfile.fullName);
+      setEmail(authProfile.email || user?.email || '');
+      setOrganization(authProfile.organization || 'IP-SAKTI');
+      setRole(authProfile.role || 'Researcher');
+      setBio(authProfile.bio || '');
+      setAvatarUrl(authProfile.avatarUrl || '');
+    }
+  }, [authProfile, user]);
+
   useEffect(() => {
     async function loadData() {
       try {
@@ -36,22 +50,6 @@ export default function SettingsPage() {
         }
       } catch (err) {
         console.warn('API backend conversation fetch fallback:', err);
-      }
-
-      // Load profile from localStorage
-      try {
-        const savedProfile = localStorage.getItem('ipsakti_user_profile');
-        if (savedProfile) {
-          const parsed = JSON.parse(savedProfile);
-          if (parsed.fullName) setFullName(parsed.fullName);
-          if (parsed.email) setEmail(parsed.email);
-          if (parsed.organization) setOrganization(parsed.organization);
-          if (parsed.role) setRole(parsed.role);
-          if (parsed.bio !== undefined) setBio(parsed.bio);
-          if (parsed.avatarUrl) setAvatarUrl(parsed.avatarUrl);
-        }
-      } catch (e) {
-        console.warn('Could not read user profile from local storage:', e);
       }
     }
     loadData();
@@ -65,30 +63,27 @@ export default function SettingsPage() {
     setConversations((prev) => prev.filter((c) => c.id !== id));
   };
 
-  const handleSave = (e: React.FormEvent) => {
+  const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSaving(true);
     setToastMessage(null);
 
-    setTimeout(() => {
-      try {
-        const profileData = {
-          fullName,
-          email,
-          organization,
-          role,
-          bio,
-          avatarUrl,
-        };
-        localStorage.setItem('ipsakti_user_profile', JSON.stringify(profileData));
-        setToastMessage({ type: 'success', text: 'Profile updated successfully.' });
-      } catch (err) {
-        setToastMessage({ type: 'error', text: 'Unable to update your profile. Please try again.' });
-      } finally {
-        setIsSaving(false);
-        setTimeout(() => setToastMessage(null), 4000);
-      }
-    }, 400);
+    try {
+      await updateProfile({
+        fullName,
+        email,
+        organization,
+        role,
+        bio,
+        avatarUrl,
+      });
+      setToastMessage({ type: 'success', text: 'Profile updated successfully.' });
+    } catch (err) {
+      setToastMessage({ type: 'error', text: 'Unable to update your profile. Please try again.' });
+    } finally {
+      setIsSaving(false);
+      setTimeout(() => setToastMessage(null), 4000);
+    }
   };
 
   const handlePhotoClick = () => {

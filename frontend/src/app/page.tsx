@@ -167,12 +167,7 @@ export default function DashboardPage() {
             IP-SAKTI Sahayak · Enterprise AI Research Platform
           </div>
 
-          <HeaderUserProfile
-            userName="manaswitha"
-            userEmail="manaswitha@ipsakti.gov.in"
-            onOpenSettings={() => alert('Account Settings')}
-            onLogout={() => (window.location.href = '/login')}
-          />
+          <HeaderUserProfile />
         </header>
 
         {/* Hero Header Section */}

@@ -9,19 +9,24 @@ import AuthInput from '@/components/auth/AuthInput';
 import PasswordInput from '@/components/auth/PasswordInput';
 import AuthButton from '@/components/auth/AuthButton';
 
+import { useAuth } from '@/context/AuthContext';
+
 export default function LoginPage() {
   const router = useRouter();
+  const { login } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [rememberMe, setRememberMe] = useState(true);
   const [emailError, setEmailError] = useState('');
   const [passwordError, setPasswordError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [formError, setFormError] = useState('');
 
   const validate = () => {
     let valid = true;
     setEmailError('');
     setPasswordError('');
+    setFormError('');
 
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!email.trim()) {
@@ -40,16 +45,25 @@ export default function LoginPage() {
     return valid;
   };
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!validate()) return;
 
     setIsLoading(true);
+    setFormError('');
 
-    setTimeout(() => {
+    try {
+      const success = await login(email.trim(), password);
+      if (success) {
+        router.push('/');
+      } else {
+        setFormError('Invalid email or password credentials. Please try again.');
+      }
+    } catch (err) {
+      setFormError('Authentication service failed. Please try again.');
+    } finally {
       setIsLoading(false);
-      router.push('/');
-    }, 600);
+    }
   };
 
   return (
@@ -63,6 +77,12 @@ export default function LoginPage() {
           Welcome back to IP-SAKTI
         </p>
       </div>
+
+      {formError && (
+        <div className="bg-red-900/40 border border-red-500/50 text-red-200 rounded-lg p-2.5 text-xs font-semibold">
+          {formError}
+        </div>
+      )}
 
       <form onSubmit={handleLogin} noValidate className="space-y-4 font-sans-body">
         {/* Email Field */}

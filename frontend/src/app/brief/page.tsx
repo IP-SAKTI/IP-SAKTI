@@ -6,7 +6,11 @@ import { ArrowLeft, FileText, Download, Share2, ShieldCheck, Leaf } from 'lucide
 import BotanicalBackground from '@/components/BotanicalBackground';
 import HeaderUserProfile from '@/components/HeaderUserProfile';
 
+import { useAuth } from '@/context/AuthContext';
+
 export default function BriefPage() {
+  const { user, profile } = useAuth();
+  const displayEmail = profile?.email || user?.email || 'user@ipsakti.gov.in';
   return (
     <div className="min-h-screen w-full bg-[#EEF3E4] font-sans-body relative flex flex-col p-6 lg:p-12">
       <BotanicalBackground />
@@ -36,7 +40,7 @@ export default function BriefPage() {
               Turmeric & Neem Traditional Prior Art Synthesis
             </h1>
             <p className="text-xs text-[#4A6357] mt-1">
-              Ref: IP-SAKTI-BRIEF-2026-0892 · Generated for: manaswitha@ipsakti.gov.in
+              Ref: IP-SAKTI-BRIEF-2026-0892 · Generated for: {displayEmail}
             </p>
           </div>
 

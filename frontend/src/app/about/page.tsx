@@ -180,13 +180,7 @@ export default function AboutPage() {
               <Bell className="w-4 h-4" />
             </button>
 
-            {/* User Profile */}
-            <HeaderUserProfile
-              userName="manaswitha"
-              userEmail="manaswitha@ipsakti.gov.in"
-              onOpenSettings={() => alert('Account Settings')}
-              onLogout={() => (window.location.href = '/login')}
-            />
+            <HeaderUserProfile />
           </div>
         </header>
 

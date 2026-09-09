@@ -9,8 +9,11 @@ import AuthInput from '@/components/auth/AuthInput';
 import PasswordInput from '@/components/auth/PasswordInput';
 import AuthButton from '@/components/auth/AuthButton';
 
+import { useAuth } from '@/context/AuthContext';
+
 export default function RegisterPage() {
   const router = useRouter();
+  const { register } = useAuth();
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -23,6 +26,7 @@ export default function RegisterPage() {
   const [confirmError, setConfirmError] = useState('');
   const [termsError, setTermsError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [formError, setFormError] = useState('');
 
   const validate = () => {
     let valid = true;
@@ -31,6 +35,7 @@ export default function RegisterPage() {
     setPasswordError('');
     setConfirmError('');
     setTermsError('');
+    setFormError('');
 
     if (!fullName.trim()) {
       setNameError('Please enter your full name.');
@@ -70,16 +75,25 @@ export default function RegisterPage() {
     return valid;
   };
 
-  const handleRegister = (e: React.FormEvent) => {
+  const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!validate()) return;
 
     setIsLoading(true);
+    setFormError('');
 
-    setTimeout(() => {
+    try {
+      const success = await register(fullName.trim(), email.trim(), password);
+      if (success) {
+        router.push('/');
+      } else {
+        setFormError('Failed to create account. Please try again.');
+      }
+    } catch (err) {
+      setFormError('Registration service error. Please try again.');
+    } finally {
       setIsLoading(false);
-      router.push('/login');
-    }, 600);
+    }
   };
 
   return (
@@ -93,6 +107,12 @@ export default function RegisterPage() {
           Join IP-SAKTI and be part of a knowledge-driven future.
         </p>
       </div>
+
+      {formError && (
+        <div className="bg-red-900/40 border border-red-500/50 text-red-200 rounded-lg p-2.5 text-xs font-semibold">
+          {formError}
+        </div>
+      )}
 
       <form onSubmit={handleRegister} noValidate className="space-y-3.5 font-sans-body">
         {/* Full Name Field */}
