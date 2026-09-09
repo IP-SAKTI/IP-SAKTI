@@ -92,13 +92,18 @@ export default function ChatInputBar({ onSendMessage, isLoading = false }: ChatI
         setIsTranscribing(true);
         try {
           const res = await transcribeAudio(audioBlob);
-          if (res.error && !res.transcript) {
-            setAudioError(res.error);
-          } else if (res.transcript) {
+          if (res.error) {
+            setAudioError(
+              res.error === 'Unsupported voice language' || res.language === 'unsupported'
+                ? 'Unsupported voice language. Please speak in English, Hindi, Telugu, or Kannada.'
+                : res.error
+            );
+            setVoiceLangInfo(null);
+          } else if (res.transcript && res.language && res.language !== 'unsupported') {
             setQuery((prev) => (prev ? `${prev.trim()} ${res.transcript.trim()}` : res.transcript.trim()));
 
-            if (res.language && res.language !== 'en') {
-              const langName = LANG_NAME_MAP[res.language] || res.language.toUpperCase();
+            if (res.language !== 'en' && LANG_NAME_MAP[res.language]) {
+              const langName = LANG_NAME_MAP[res.language];
               setVoiceLangInfo({
                 code: res.language,
                 name: langName,

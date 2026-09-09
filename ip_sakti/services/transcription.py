@@ -1,9 +1,9 @@
 """
 Voice Input / Speech-to-Text & Multilingual Translation Service for IP-SAKTI Sahayak
 
-Uses pretrained Whisper (openai-whisper) with lightweight model ('tiny' or 'base')
-for low latency CPU transcription supporting English and Indian languages (Hindi, Telugu, Kannada).
-Integrates with QueryTranslator for translating voice queries to English.
+Uses pretrained Whisper 'base' model with deterministic greedy decoding (temperature=0.0),
+anti-hallucination constraints, and safe language detection filtering for English, Hindi,
+Telugu, and Kannada. Integrates with QueryTranslator for translating voice queries.
 """
 
 import os
@@ -46,10 +46,10 @@ LANG_CODE_MAP = {
 }
 
 
-def get_whisper_model(model_name: str = "tiny"):
+def get_whisper_model(model_name: str = "base"):
     """
     Lazy-load and return cached singleton instance of Whisper model.
-    Default: 'tiny' for fast CPU inference.
+    Default: 'base' for high-accuracy CPU transcription.
     """
     global _WHISPER_MODEL
     if _WHISPER_MODEL is None:
@@ -73,8 +73,9 @@ def get_query_translator():
 
 def transcribe_audio_bytes(audio_bytes: bytes, filename: str = "audio.webm") -> dict:
     """
-    Transcribe audio bytes using pretrained Whisper model and translate to English
-    if language is one of the supported Indian languages (hi, te, kn).
+    Transcribe audio bytes using pretrained Whisper model ('base') with deterministic
+    greedy decoding (temperature=0.0) and translate to English if language is one of the
+    supported Indian languages (hi, te, kn).
     
     Args:
         audio_bytes: Raw bytes of the recorded audio file.
@@ -105,62 +106,72 @@ def transcribe_audio_bytes(audio_bytes: bytes, filename: str = "audio.webm") -> 
         tmp_path = tmp.name
 
     try:
-        model = get_whisper_model("tiny")
-        # Transcribe temporary audio file with CPU fallback (fp16=False)
-        result = model.transcribe(tmp_path, fp16=False)
-        text = result.get("text", "").strip()
+        model = get_whisper_model("base")
+
+        # Robust, deterministic decoding options to prevent hallucination & bad sampling
+        result = model.transcribe(
+            tmp_path,
+            fp16=False,
+            task="transcribe",
+            temperature=0.0,                    # Deterministic greedy decoding (eliminates random sampling hallucinations)
+            condition_on_previous_text=False,  # Prevents hallucinating text from silence/previous clips
+            no_speech_threshold=0.6,           # Rejects audio segments where no-speech probability > 0.6
+            logprob_threshold=-1.0,            # Rejects low confidence logprob outputs
+            compression_ratio_threshold=2.4    # Detects repetitive/hallucinated text loops
+        )
+
+        raw_text = result.get("text", "").strip()
         raw_lang = (result.get("language") or "en").lower().strip()
-        
-        # Normalize language code
         norm_lang = LANG_CODE_MAP.get(raw_lang, raw_lang)
 
-        logger.info(f"Transcribed audio ({len(audio_bytes)} bytes) -> '{text}' (detected_lang={norm_lang})")
+        logger.info(f"Whisper STT decoded: '{raw_text}' (raw_lang={raw_lang}, norm_lang={norm_lang})")
 
-        if not text:
+        # 1. Reject empty or no-speech transcript
+        if not raw_text:
             return {
                 "transcript": "",
-                "language": norm_lang,
+                "language": norm_lang if norm_lang in SUPPORTED_VOICE_LANGUAGES else "en",
                 "translated_text": None,
                 "error": "No speech detected in audio. Please try speaking clearly."
             }
 
-        # Check if detected language is supported
+        # 2. Strict language filter: if Whisper detects an unsupported language (e.g. 'pa', 'cy', 'ja')
         if norm_lang not in SUPPORTED_VOICE_LANGUAGES:
-            logger.warning(f"Unsupported voice language detected: '{norm_lang}'")
+            logger.warning(f"Unsupported voice language detected: '{norm_lang}' for text '{raw_text}'")
             return {
-                "transcript": text,
-                "language": norm_lang,
+                "transcript": "",
+                "language": "unsupported",
                 "translated_text": None,
                 "error": "Unsupported voice language"
             }
 
-        # English voice query
+        # 3. English voice query
         if norm_lang == "en":
             return {
-                "transcript": text,
+                "transcript": raw_text,
                 "language": "en",
-                "translated_text": text,
+                "translated_text": raw_text,
                 "error": None
             }
 
-        # Multilingual voice query (Hindi, Telugu, Kannada) -> translate to English
+        # 4. Multilingual voice query (Hindi, Telugu, Kannada) -> translate to English
         try:
             translator = get_query_translator()
-            trans_result = translator.translate_to_retrieval_language(text, norm_lang)
+            trans_result = translator.translate_to_retrieval_language(raw_text, norm_lang)
             translated = trans_result.translated_text.strip()
             
-            logger.info(f"Translated [{norm_lang}] '{text}' -> [en] '{translated}'")
+            logger.info(f"Translated [{norm_lang}] '{raw_text}' -> [en] '{translated}'")
             
             return {
-                "transcript": text,
+                "transcript": raw_text,
                 "language": norm_lang,
-                "translated_text": translated if translated else text,
+                "translated_text": translated if translated else raw_text,
                 "error": None
             }
         except Exception as trans_err:
-            logger.error(f"Translation failed for [{norm_lang}] text '{text}': {trans_err}", exc_info=True)
+            logger.error(f"Translation failed for [{norm_lang}] text '{raw_text}': {trans_err}", exc_info=True)
             return {
-                "transcript": text,
+                "transcript": raw_text,
                 "language": norm_lang,
                 "translated_text": None,
                 "error": f"Translation failed: {str(trans_err)}"
