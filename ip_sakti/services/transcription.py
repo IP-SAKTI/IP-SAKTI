@@ -109,7 +109,7 @@ def validate_script_consistency(text: str, lang_code: str) -> bool:
     """
     Enforce strict script consistency for the detected language:
     - 'te' (Telugu) MUST contain Telugu script characters (\u0c00-\u0c7f).
-    - 'kn' (Kannada) MUST contain Kannada script characters (\u0cb0-\u0cff).
+    - 'kn' (Kannada) MUST contain Kannada script characters (\u0c80-\u0cff).
     - 'hi' (Hindi) MUST contain Devanagari script characters (\u0900-\u097f).
     """
     if not text or lang_code == "en":
@@ -117,7 +117,7 @@ def validate_script_consistency(text: str, lang_code: str) -> bool:
 
     devanagari_count = sum(1 for c in text if '\u0900' <= c <= '\u097f')
     telugu_count = sum(1 for c in text if '\u0c00' <= c <= '\u0c7f')
-    kannada_count = sum(1 for c in text if '\u0cb0' <= c <= '\u0cff')
+    kannada_count = sum(1 for c in text if '\u0c80' <= c <= '\u0cff')
 
     if lang_code == "te" and telugu_count == 0:
         logger.error(f"Script Mismatch / Hallucination: language='te' but zero Telugu characters in '{text}'")
@@ -142,7 +142,7 @@ def transcribe_audio_bytes(
 ) -> dict:
     """
     Transcribe audio bytes using pretrained Whisper model ('base').
-    Uses 2-stage audio language detection, explicit language enforcement (task='transcribe', language=norm_lang),
+    Uses explicit language enforcement (task='transcribe', language=norm_lang),
     and script consistency validation.
     
     Args:
@@ -181,42 +181,43 @@ def transcribe_audio_bytes(
         import whisper
         model = get_whisper_model("base")
 
-        # ── Stage 1: Audio Language Detection & Target Hint Enforcement ────────────
+        # ── Stage 1: Target Language Enforcement (Force User Selection) ────────────
         raw_lang = "en"
-        detected_prob = 0.0
-        try:
-            audio = whisper.load_audio(tmp_path)
-            if len(audio) > 0:
-                audio_padded = whisper.pad_or_trim(audio)
-                mel = whisper.log_mel_spectrogram(audio_padded).to(model.device)
-                _, probs = model.detect_language(mel)
-                top_lang = max(probs, key=probs.get)
-                raw_lang = str(top_lang).lower().strip()
-                detected_prob = float(probs[top_lang])
-                logger.info(f"Whisper Audio Language Detection: raw_lang='{raw_lang}', prob={detected_prob:.4f}")
-        except Exception as det_err:
-            logger.warning(f"Whisper detect_language fallback error: {det_err}")
+        detected_prob = 1.0
 
-        norm_lang = LANG_CODE_MAP.get(raw_lang, raw_lang)
-
-        # Honor explicit target_lang hint from user UI selection if provided
         if target_lang:
             hint_clean = LANG_CODE_MAP.get(target_lang.lower().strip(), target_lang.lower().strip())
             if hint_clean in SUPPORTED_VOICE_LANGUAGES:
                 norm_lang = hint_clean
-                logger.info(f"Enforcing target_lang hint from UI selection: '{norm_lang}'")
+                raw_lang = norm_lang
+                logger.info(f"Forcing user-selected STT language: '{norm_lang}'")
+            else:
+                norm_lang = "en"
+        else:
+            try:
+                audio = whisper.load_audio(tmp_path)
+                if len(audio) > 0:
+                    audio_padded = whisper.pad_or_trim(audio)
+                    mel = whisper.log_mel_spectrogram(audio_padded).to(model.device)
+                    _, probs = model.detect_language(mel)
+                    top_lang = max(probs, key=probs.get)
+                    raw_lang = str(top_lang).lower().strip()
+                    detected_prob = float(probs[top_lang])
+                    logger.info(f"Whisper Audio Language Detection: raw_lang='{raw_lang}', prob={detected_prob:.4f}")
+            except Exception as det_err:
+                logger.warning(f"Whisper detect_language fallback error: {det_err}")
 
-        # Fallback to 'en' if language is still unsupported instead of hard rejection
-        if norm_lang not in SUPPORTED_VOICE_LANGUAGES:
-            logger.warning(f"Unsupported language '{norm_lang}', defaulting to 'en'")
-            norm_lang = "en"
+            norm_lang = LANG_CODE_MAP.get(raw_lang, raw_lang)
+            if norm_lang not in SUPPORTED_VOICE_LANGUAGES:
+                logger.warning(f"Unsupported language '{norm_lang}', defaulting to 'en'")
+                norm_lang = "en"
 
         # ── Stage 2: Targeted STT Transcription with Explicit Language Enforcement ─
         stt_result = model.transcribe(
             tmp_path,
             fp16=False,
             task="transcribe",                  # Native speech-to-text ONLY
-            language=norm_lang,                 # Explicitly enforce detected language & script!
+            language=norm_lang,                 # Explicitly enforce target language & script!
             temperature=0.0,                    # Greedy deterministic decoding
             condition_on_previous_text=False,
             no_speech_threshold=0.6,
@@ -239,11 +240,13 @@ def transcribe_audio_bytes(
         # ── Stage 3: Script Consistency Validation ─────────────────────────────────
         if not validate_script_consistency(raw_text, norm_lang):
             logger.error(f"Script Mismatch / Hallucination Rejected: lang={norm_lang} cannot produce script of '{raw_text}'")
+            lang_names = {"en": "English", "hi": "Hindi", "te": "Telugu", "kn": "Kannada"}
+            l_name = lang_names.get(norm_lang, norm_lang)
             return {
                 "transcript": "",
                 "language": norm_lang,
                 "translated_text": None,
-                "error": "No speech detected in audio. Please try speaking clearly."
+                "error": f"Speech detected, but {l_name} transcription could not be completed (script mismatch). Please try speaking clearly."
             }
 
         # ── Stage 4: English vs Multilingual Semantic Translation ──────────────────
@@ -300,14 +303,16 @@ def transcribe_audio_bytes(
         # Print Verbose Diagnostic Log to Terminal
         print("\n" + "=" * 50, flush=True)
         print("=== VOICE DEBUG ===", flush=True)
-        print(f"MIME: {mime}", flush=True)
-        print(f"Size: {len(audio_bytes)} bytes", flush=True)
+        print(f"Selected language: {target_lang or 'auto'}", flush=True)
+        print(f"Backend language: {norm_lang}", flush=True)
+        print(f"Audio MIME: {mime}", flush=True)
+        print(f"Audio size: {len(audio_bytes)} bytes", flush=True)
         print(f"Temp Audio Path: {tmp_path}", flush=True)
-        print(f"\nWhisper detected:\n{raw_lang}\nprobability:\n{detected_prob:.2f}", flush=True)
-        print(f"\nTranscription:\nlanguage={norm_lang}\ntask=transcribe", flush=True)
-        print(f"\nRAW TRANSCRIPT:\n{raw_text}", flush=True)
-        print(f"\nTRANSLATION INPUT:\n{raw_text}", flush=True)
-        print(f"\nTRANSLATION OUTPUT:\n{translated_text}", flush=True)
+        print(f"Whisper language: {norm_lang}", flush=True)
+        print(f"Whisper task: transcribe", flush=True)
+        print(f"RAW TRANSCRIPT:\n{raw_text}", flush=True)
+        print(f"TRANSLATION INPUT:\n{raw_text}", flush=True)
+        print(f"TRANSLATION OUTPUT:\n{translated_text}", flush=True)
         print("=" * 50 + "\n", flush=True)
 
         if not translated_text or is_romanized_gibberish(translated_text, norm_lang):
