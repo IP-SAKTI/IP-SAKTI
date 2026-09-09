@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useRef, useEffect, KeyboardEvent } from 'react';
-import { Search, Send, Loader2, Globe, Mic, Square, AlertCircle } from 'lucide-react';
+import { Search, Send, Loader2, Globe, Mic, Square, AlertCircle, XCircle } from 'lucide-react';
 import { transcribeAudio } from '@/lib/api';
 
 interface ChatInputBarProps {
@@ -34,6 +34,7 @@ export default function ChatInputBar({ onSendMessage, isLoading = false }: ChatI
   const audioChunksRef = useRef<Blob[]>([]);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
+  const isCancelledRef = useRef<boolean>(false);
 
   useEffect(() => {
     return () => {
@@ -47,6 +48,8 @@ export default function ChatInputBar({ onSendMessage, isLoading = false }: ChatI
   const startRecording = async () => {
     setAudioError(null);
     setVoiceLangInfo(null);
+    isCancelledRef.current = false;
+
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       audioChunksRef.current = [];
@@ -64,7 +67,7 @@ export default function ChatInputBar({ onSendMessage, isLoading = false }: ChatI
       mediaRecorderRef.current = mediaRecorder;
 
       mediaRecorder.ondataavailable = (event) => {
-        if (event.data && event.data.size > 0) {
+        if (!isCancelledRef.current && event.data && event.data.size > 0) {
           audioChunksRef.current.push(event.data);
         }
       };
@@ -72,6 +75,15 @@ export default function ChatInputBar({ onSendMessage, isLoading = false }: ChatI
       mediaRecorder.onstop = async () => {
         stream.getTracks().forEach((track) => track.stop());
         if (timerRef.current) clearInterval(timerRef.current);
+
+        // Edge Case: If recording was cancelled, discard chunks and exit early!
+        if (isCancelledRef.current) {
+          audioChunksRef.current = [];
+          setIsRecording(false);
+          setRecordingTime(0);
+          return;
+        }
+
         setIsRecording(false);
         setRecordingTime(0);
 
@@ -148,6 +160,19 @@ export default function ChatInputBar({ onSendMessage, isLoading = false }: ChatI
     }
   };
 
+  const cancelRecording = () => {
+    isCancelledRef.current = true;
+    if (timerRef.current) clearInterval(timerRef.current);
+    audioChunksRef.current = [];
+    setIsRecording(false);
+    setRecordingTime(0);
+    setAudioError(null);
+
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+      mediaRecorderRef.current.stop();
+    }
+  };
+
   const toggleRecording = () => {
     if (isRecording) {
       stopRecording();
@@ -191,7 +216,7 @@ export default function ChatInputBar({ onSendMessage, isLoading = false }: ChatI
             disabled={isLoading || isRecording || isTranscribing}
             placeholder={
               isRecording
-                ? `Listening... (${formatSeconds(recordingTime)}) - Click mic to stop`
+                ? `🔴 Listening... (${formatSeconds(recordingTime)})`
                 : isTranscribing
                 ? 'Transcribing & translating voice query...'
                 : 'Ask about Traditional Knowledge, patents, AYUSH or ABS... (English / हिन्दी / తెలుగు / ಕನ್ನಡ)'
@@ -199,12 +224,26 @@ export default function ChatInputBar({ onSendMessage, isLoading = false }: ChatI
             className="flex-1 bg-transparent py-2.5 text-sm text-[#003E29] placeholder-[#7C817A] focus:outline-none font-sans-body"
           />
 
-          {/* Voice Input Mic Button */}
+          {/* Cancel Recording Button (Visible only during active recording) */}
+          {isRecording && (
+            <button
+              type="button"
+              onClick={cancelRecording}
+              title="Cancel recording & discard audio"
+              aria-label="Cancel voice recording"
+              className="h-10 px-2.5 rounded-lg flex items-center justify-center gap-1 bg-stone-100 text-stone-600 hover:text-red-600 hover:bg-red-50 border border-stone-200 text-xs font-medium transition-all shrink-0 cursor-pointer"
+            >
+              <XCircle className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Cancel</span>
+            </button>
+          )}
+
+          {/* Voice Input / Stop Recording Mic Button */}
           <button
             type="button"
             onClick={toggleRecording}
             disabled={isLoading || isTranscribing}
-            title={isRecording ? 'Stop recording' : 'Voice Input / Speak in EN, HI, TE, KN'}
+            title={isRecording ? 'Stop & transcribe recording' : 'Voice Input / Speak in EN, HI, TE, KN'}
             aria-label={isRecording ? 'Stop voice recording' : 'Start voice input'}
             className={`h-10 px-2.5 rounded-lg flex items-center justify-center gap-1.5 transition-all duration-200 shrink-0 cursor-pointer ${
               isRecording
@@ -222,7 +261,7 @@ export default function ChatInputBar({ onSendMessage, isLoading = false }: ChatI
             ) : isRecording ? (
               <>
                 <Square className="w-3.5 h-3.5 fill-red-600 text-red-600" />
-                <span className="text-[11px] font-semibold text-red-600">{formatSeconds(recordingTime)}</span>
+                <span className="text-[11px] font-semibold text-red-600">Stop ({formatSeconds(recordingTime)})</span>
               </>
             ) : (
               <Mic className="w-4 h-4" />

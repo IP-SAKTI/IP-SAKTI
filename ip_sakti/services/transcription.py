@@ -2,8 +2,8 @@
 Voice Input / Speech-to-Text & Multilingual Translation Service for IP-SAKTI Sahayak
 
 Uses pretrained Whisper 'base' model with deterministic greedy decoding (temperature=0.0),
-dual-task (transcribe + translate) audio processing, anti-romanization validation,
-and safe language detection filtering for English, Hindi, Telugu, and Kannada.
+task="transcribe" for native script decoding (EN, HI, TE, KN) with native script prompts,
+anti-romanization validation, and QueryTranslator for semantic English translation.
 """
 
 import os
@@ -44,6 +44,13 @@ LANG_CODE_MAP = {
     "te": "te", "tel": "te", "telugu": "te",
     "kn": "kn", "kan": "kn", "kannada": "kn",
 }
+
+INDIC_NATIVE_PROMPT = (
+    "What permissions are required to manufacture an Ayurvedic medicine? "
+    "ఆయుర్వేద ఔషధాన్ని తయారు చేయడానికి ఏ అనుమతులు కావాలి? "
+    "आयुर्वेदिक दवा बनाने के लिए क्या लाइसेंस चाहिए? "
+    "ಆಯುರ್ವೇದ ಔಷಧ ತಯಾರಿಸಲು ಯಾವ ಅನುಮತಿಗಳು ಬೇಕು?"
+)
 
 COMMON_ENGLISH_KEYWORDS = {
     "what", "how", "which", "why", "where", "is", "are", "can", "to", "for",
@@ -89,8 +96,8 @@ def is_romanized_gibberish(text: str, source_lang: str) -> bool:
         
     text_lower = text.lower()
     
-    # Check for known romanized non-English tokens (e.g. "hairovidha", "haushdha", "hayaro")
-    romanized_tokens = {"hairovidha", "haushdha", "hayaro", "tanki", "inhon", "madho", "kowali", "banane", "chahiye"}
+    # Check for known romanized non-English tokens
+    romanized_tokens = {"hairovidha", "haushdha", "hayaro", "tanki", "inhon", "madho", "kowali", "banane", "chahiye", "tayaru", "cheyadaniki"}
     words = set(text_lower.split())
     if len(words.intersection(romanized_tokens)) > 0:
         return True
@@ -106,8 +113,8 @@ def is_romanized_gibberish(text: str, source_lang: str) -> bool:
 
 def transcribe_audio_bytes(audio_bytes: bytes, filename: str = "audio.webm") -> dict:
     """
-    Transcribe audio bytes using pretrained Whisper model ('base').
-    Produces original transcript and true semantic English translation for hi, te, kn.
+    Transcribe audio bytes using pretrained Whisper model ('base') with task='transcribe'.
+    Decodes native script (EN, HI, TE, KN) and produces semantic English translation.
     
     Args:
         audio_bytes: Raw bytes of the recorded audio file.
@@ -140,12 +147,13 @@ def transcribe_audio_bytes(audio_bytes: bytes, filename: str = "audio.webm") -> 
     try:
         model = get_whisper_model("base")
 
-        # Step 1: STT Transcription in native language
+        # Step 1: STT Transcription in native script using task="transcribe" and native script initial prompt
         stt_result = model.transcribe(
             tmp_path,
             fp16=False,
             task="transcribe",
             temperature=0.0,
+            initial_prompt=INDIC_NATIVE_PROMPT,
             condition_on_previous_text=False,
             no_speech_threshold=0.6,
             logprob_threshold=-1.0,
@@ -200,7 +208,7 @@ def transcribe_audio_bytes(audio_bytes: bytes, filename: str = "audio.webm") -> 
         except Exception as qt_err:
             logger.warning(f"QueryTranslator error: {qt_err}")
 
-        # Route B: Direct neural audio-to-English translation task ("translate") via Whisper
+        # Route B: Direct neural audio-to-English translation task ("translate") via Whisper if Route A failed
         if not translated_text or is_romanized_gibberish(translated_text, norm_lang):
             try:
                 whisper_trans = model.transcribe(
