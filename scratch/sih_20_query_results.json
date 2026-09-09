@@ -1,0 +1,389 @@
+[
+  {
+    "num": 1,
+    "id": "IP-01",
+    "category": "Indian IP / Patents",
+    "query": "What are the patentability considerations for an Ayurvedic formulation containing turmeric under Section 3(p)?",
+    "agents": [
+      "ip_agent"
+    ],
+    "evidence_count": 5,
+    "top_docs": [
+      "doc_ip_india_ayush_guidelines_2025",
+      "doc_patents_act_3p",
+      "doc_patents_act_3p"
+    ],
+    "citation_count": 5,
+    "confidence": 0.9988,
+    "is_abstention": false,
+    "latency_sec": 11.77,
+    "answer_snippet": "According to Office of the Controller General of Patents, Designs and Trade Marks [SOURCE_1]: The Guidelines for Examina..."
+  },
+  {
+    "num": 2,
+    "id": "IP-02",
+    "category": "Indian IP / Patents",
+    "query": "Does a mere admixture of known medicinal plants qualify for patent grant under Section 3(e) of the Indian Patents Act?",
+    "agents": [
+      "ip_agent"
+    ],
+    "evidence_count": 5,
+    "top_docs": [
+      "doc_patents_act_3p",
+      "doc_ip_india_ayush_guidelines_2025",
+      "doc_ip_india_ayush_guidelines_2025"
+    ],
+    "citation_count": 5,
+    "confidence": 0.9995,
+    "is_abstention": false,
+    "latency_sec": 5.65,
+    "answer_snippet": "According to Office of the Controller General of Patents, Designs and Trade Marks [SOURCE_1]: Section 3(p) of the Patent..."
+  },
+  {
+    "num": 3,
+    "id": "IP-03",
+    "category": "Indian IP / Patents",
+    "query": "What are the disclosure requirements for biological material under Section 10(4)(d)(ii) of the Indian Patents Act?",
+    "agents": [
+      "ip_agent"
+    ],
+    "evidence_count": 5,
+    "top_docs": [
+      "doc_ip_india_ayush_guidelines_2025",
+      "doc_patents_act_3p",
+      "doc_biodiversity_act_2002"
+    ],
+    "citation_count": 5,
+    "confidence": 0.9999,
+    "is_abstention": false,
+    "latency_sec": 5.94,
+    "answer_snippet": "According to Office of the Controller General of Patents, Designs and Trade Marks [SOURCE_1]: ned by mere admixture resu..."
+  },
+  {
+    "num": 4,
+    "id": "IP-04",
+    "category": "Indian IP / Patents",
+    "query": "How does the Indian Patent Office use the Traditional Knowledge Digital Library (TKDL) to establish prior art?",
+    "agents": [
+      "ip_agent"
+    ],
+    "evidence_count": 5,
+    "top_docs": [
+      "doc_tkdl_wipo_policy",
+      "doc_tkdl_wipo_policy",
+      "doc_patents_act_3p"
+    ],
+    "citation_count": 5,
+    "confidence": 0.9999,
+    "is_abstention": false,
+    "latency_sec": 19.79,
+    "answer_snippet": "According to World Intellectual Property Organization / CSIR [SOURCE_1]: The Traditional Knowledge Digital Library (TKDL..."
+  },
+  {
+    "num": 5,
+    "id": "IP-05",
+    "category": "Indian IP / Patents",
+    "query": "Can a synergistic combination of herbal extracts be patented in India if non-obviousness is proven?",
+    "agents": [
+      "ip_agent"
+    ],
+    "evidence_count": 2,
+    "top_docs": [
+      "doc_patents_act_3p",
+      "doc_patents_act_3p"
+    ],
+    "citation_count": 2,
+    "confidence": 0.7735,
+    "is_abstention": false,
+    "latency_sec": 4.82,
+    "answer_snippet": "According to Office of the Controller General of Patents, Designs and Trade Marks [SOURCE_1]: tion 3(e) requires proving..."
+  },
+  {
+    "num": 6,
+    "id": "AYUSH-01",
+    "category": "AYUSH Regulatory",
+    "query": "What are the mandatory proof of safety requirements under Rule 158-B of Drugs and Cosmetics Rules for Ayurvedic proprietary medicine?",
+    "agents": [
+      "regulatory_agent"
+    ],
+    "evidence_count": 5,
+    "top_docs": [
+      "doc_ayush_rule_158b",
+      "doc_ayush_form_24d",
+      "doc_ayush_rule_158b"
+    ],
+    "citation_count": 5,
+    "confidence": 0.9962,
+    "is_abstention": false,
+    "latency_sec": 4.97,
+    "answer_snippet": "According to Ministry of AYUSH [SOURCE_1]: Rule 158-B of the Drugs and Cosmetics Rules, 1945 outlines the mandatory lice..."
+  },
+  {
+    "num": 7,
+    "id": "AYUSH-02",
+    "category": "AYUSH Regulatory",
+    "query": "What is the procedure and documentation required to apply for Form 24D manufacturing license for ASU medicines?",
+    "agents": [
+      "regulatory_agent"
+    ],
+    "evidence_count": 5,
+    "top_docs": [
+      "doc_ayush_form_24d",
+      "doc_ayush_rule_158b",
+      "doc_ayush_rule_158b"
+    ],
+    "citation_count": 5,
+    "confidence": 0.9993,
+    "is_abstention": false,
+    "latency_sec": 7.16,
+    "answer_snippet": "According to Ministry of AYUSH [SOURCE_1]: To manufacture Ayurveda, Siddha, or Unani (ASU) drugs for commercial sale in ..."
+  },
+  {
+    "num": 8,
+    "id": "AYUSH-03",
+    "category": "AYUSH Regulatory",
+    "query": "What are the labeling and quality control guidelines prescribed by the Ministry of AYUSH for classical formulations?",
+    "agents": [
+      "regulatory_agent"
+    ],
+    "evidence_count": 5,
+    "top_docs": [
+      "doc_ayush_rule_158b",
+      "doc_ip_india_ayush_guidelines_2025",
+      "doc_patents_act_3p"
+    ],
+    "citation_count": 5,
+    "confidence": 0.9912,
+    "is_abstention": false,
+    "latency_sec": 6.43,
+    "answer_snippet": "According to Ministry of AYUSH [SOURCE_1]: Rule 158-B of the Drugs and Cosmetics Rules, 1945 outlines the mandatory lice..."
+  },
+  {
+    "num": 9,
+    "id": "AYUSH-04",
+    "category": "AYUSH Regulatory",
+    "query": "Do classical Ayurvedic medicines listed in authoritative texts require clinical trials under Rule 158-B?",
+    "agents": [
+      "regulatory_agent"
+    ],
+    "evidence_count": 5,
+    "top_docs": [
+      "doc_ayush_rule_158b",
+      "doc_ayush_rule_158b",
+      "doc_patents_act_3p"
+    ],
+    "citation_count": 5,
+    "confidence": 0.9919,
+    "is_abstention": false,
+    "latency_sec": 4.79,
+    "answer_snippet": "According to Ministry of AYUSH [SOURCE_1]: Rule 158-B of the Drugs and Cosmetics Rules, 1945 outlines the mandatory lice..."
+  },
+  {
+    "num": 10,
+    "id": "AYUSH-05",
+    "category": "AYUSH Regulatory",
+    "query": "What are the compliance requirements for selling Ayurvedic proprietary cosmetics vs therapeutic formulations in India?",
+    "agents": [
+      "ip_agent"
+    ],
+    "evidence_count": 5,
+    "top_docs": [
+      "doc_ayush_form_24d",
+      "doc_ayush_rule_158b",
+      "doc_ayush_form_24d"
+    ],
+    "citation_count": 5,
+    "confidence": 0.9979,
+    "is_abstention": false,
+    "latency_sec": 4.43,
+    "answer_snippet": "According to Ministry of AYUSH [SOURCE_1]: To manufacture Ayurveda, Siddha, or Unani (ASU) drugs for commercial sale in ..."
+  },
+  {
+    "num": 11,
+    "id": "TKABS-01",
+    "category": "TK / ABS",
+    "query": "When is prior approval from the National Biodiversity Authority (NBA) mandatory under the Biological Diversity Act, 2002?",
+    "agents": [
+      "tk_abs_agent"
+    ],
+    "evidence_count": 4,
+    "top_docs": [
+      "doc_biodiversity_act_2002",
+      "doc_biodiversity_act_2002",
+      "doc_biodiversity_act_2002"
+    ],
+    "citation_count": 4,
+    "confidence": 0.9974,
+    "is_abstention": false,
+    "latency_sec": 3.72,
+    "answer_snippet": "According to National Biodiversity Authority [SOURCE_1]: The Biological Diversity Act, 2002 regulates access to Indian b..."
+  },
+  {
+    "num": 12,
+    "id": "TKABS-02",
+    "category": "TK / ABS",
+    "query": "What are the benefit-sharing obligations for commercial utilization of biological resources under NBA ABS Regulations 2014?",
+    "agents": [
+      "tk_abs_agent"
+    ],
+    "evidence_count": 5,
+    "top_docs": [
+      "doc_nba_abs_regulations_2014",
+      "doc_biodiversity_act_2002",
+      "doc_biodiversity_act_2002"
+    ],
+    "citation_count": 5,
+    "confidence": 0.9993,
+    "is_abstention": false,
+    "latency_sec": 3.69,
+    "answer_snippet": "According to National Biodiversity Authority [SOURCE_1]: The Guidelines on Access to Biological Resources and Associated..."
+  },
+  {
+    "num": 13,
+    "id": "TKABS-03",
+    "category": "TK / ABS",
+    "query": "Can a foreign entity file a patent in India using Indian bio-resources without prior NBA consent?",
+    "agents": [
+      "ip_agent"
+    ],
+    "evidence_count": 5,
+    "top_docs": [
+      "doc_biodiversity_act_2002",
+      "doc_biodiversity_act_2002",
+      "doc_biodiversity_act_2002"
+    ],
+    "citation_count": 5,
+    "confidence": 0.9966,
+    "is_abstention": false,
+    "latency_sec": 4.25,
+    "answer_snippet": "According to National Biodiversity Authority [SOURCE_1]: obtaining Indian biological resources for commercial utilizatio..."
+  },
+  {
+    "num": 14,
+    "id": "TKABS-04",
+    "category": "TK / ABS",
+    "query": "What is the role of State Biodiversity Boards (SBB) in access and benefit sharing for Indian citizens?",
+    "agents": [
+      "tk_abs_agent"
+    ],
+    "evidence_count": 5,
+    "top_docs": [
+      "doc_nba_abs_regulations_2014",
+      "doc_biodiversity_act_2002",
+      "doc_biodiversity_act_2002"
+    ],
+    "citation_count": 5,
+    "confidence": 0.9975,
+    "is_abstention": false,
+    "latency_sec": 3.64,
+    "answer_snippet": "According to National Biodiversity Authority [SOURCE_1]: The Guidelines on Access to Biological Resources and Associated..."
+  },
+  {
+    "num": 15,
+    "id": "TKABS-05",
+    "category": "TK / ABS",
+    "query": "What are the penalties for accessing Indian biological resources for commercial research without NBA approval under Section 55?",
+    "agents": [
+      "tk_abs_agent"
+    ],
+    "evidence_count": 5,
+    "top_docs": [
+      "doc_biodiversity_act_2002",
+      "doc_biodiversity_act_2002",
+      "doc_biodiversity_act_2002"
+    ],
+    "citation_count": 5,
+    "confidence": 0.9988,
+    "is_abstention": false,
+    "latency_sec": 3.71,
+    "answer_snippet": "According to National Biodiversity Authority [SOURCE_1]: obtaining Indian biological resources for commercial utilizatio..."
+  },
+  {
+    "num": 16,
+    "id": "MULTI-01",
+    "category": "Multilingual (Hindi)",
+    "query": "आयुर्वेदिक औषधि के लिए पेटेंट दाखिल करने की क्या आवश्यकताएँ हैं?",
+    "agents": [
+      "ip_agent"
+    ],
+    "evidence_count": 5,
+    "top_docs": [
+      "doc_ayush_form_24d",
+      "doc_ayush_rule_158b",
+      "doc_patents_act_3p"
+    ],
+    "citation_count": 5,
+    "confidence": 0.9998,
+    "is_abstention": false,
+    "latency_sec": 4.34,
+    "answer_snippet": "आयुष मंत्रालय के अनुसार, भारत में व्यावसायिक बिक्री के लिए आयुर्वेद, सिद्ध या यूनानी (एएसयू) दवाओं का निर्माण करने के लि..."
+  },
+  {
+    "num": 17,
+    "id": "MULTI-02",
+    "category": "Multilingual (Hindi)",
+    "query": "क्या हल्दी और नीम के पारंपरिक उपयोग पर भारत में पेटेंट मिल सकता है?",
+    "agents": [
+      "ip_agent"
+    ],
+    "evidence_count": 5,
+    "top_docs": [
+      "doc_patents_act_3p",
+      "doc_ip_india_ayush_guidelines_2025",
+      "doc_biodiversity_act_2002"
+    ],
+    "citation_count": 5,
+    "confidence": 0.9004,
+    "is_abstention": false,
+    "latency_sec": 5.53,
+    "answer_snippet": "पेटेंट, डिज़ाइन और ट्रेड मार्क्स महानियंत्रक कार्यालय के अनुसार [SOURCE_1] : पेटेंट अधिनियम, 1970 की धारा 3 (पी) निर्दिष..."
+  },
+  {
+    "num": 18,
+    "id": "MULTI-03",
+    "category": "Multilingual (Hindi)",
+    "query": "एनबीए (NBA) से जैविक संसाधनों के उपयोग के लिए अनुमति कब आवश्यक है?",
+    "agents": [
+      "tk_abs_agent"
+    ],
+    "evidence_count": 4,
+    "top_docs": [
+      "doc_biodiversity_act_2002",
+      "doc_biodiversity_act_2002",
+      "doc_nba_abs_regulations_2014"
+    ],
+    "citation_count": 4,
+    "confidence": 0.9984,
+    "is_abstention": false,
+    "latency_sec": 4.62,
+    "answer_snippet": "राष्ट्रीय जैव विविधता प्राधिकरण [SOURCE_1] के अनुसार: व्यावसायिक उपयोग या अनुसंधान के लिए भारतीय जैविक संसाधनों को प्राप..."
+  },
+  {
+    "num": 19,
+    "id": "OUT-01",
+    "category": "Out-of-Domain (Abstention)",
+    "query": "What are the cryptographic quantum key distribution protocols specified in the Indian IT Act 2000?",
+    "agents": [],
+    "evidence_count": 0,
+    "top_docs": [],
+    "citation_count": 0,
+    "confidence": null,
+    "is_abstention": true,
+    "latency_sec": 4.27,
+    "answer_snippet": "I cannot provide a definitive or source-grounded answer to your query because the available authoritative knowledge base..."
+  },
+  {
+    "num": 20,
+    "id": "OUT-02",
+    "category": "Out-of-Domain (Abstention)",
+    "query": "What is the exact chemical synthesis procedure for synthetic mRNA vaccines under FDA 2026 regulations?",
+    "agents": [],
+    "evidence_count": 0,
+    "top_docs": [],
+    "citation_count": 0,
+    "confidence": null,
+    "is_abstention": true,
+    "latency_sec": 6.18,
+    "answer_snippet": "I cannot provide a definitive or source-grounded answer to your query because the available authoritative knowledge base..."
+  }
+]
