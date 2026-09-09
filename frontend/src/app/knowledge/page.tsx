@@ -28,7 +28,11 @@ export default function KnowledgePage() {
   }
 
   if (!user) {
-    return null;
+    return (
+      <div className="min-h-screen bg-[#001D14] flex items-center justify-center text-white text-sm font-sans-body">
+        Loading IP-SAKTI...
+      </div>
+    );
   }
 
   const categories = ['All', 'IP & Patent', 'Traditional Knowledge', 'AYUSH Regulatory', 'ABS & Biodiversity'];

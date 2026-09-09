@@ -221,7 +221,13 @@ export default function DashboardPage() {
   }
 
   if (!user) {
-    return null;
+    // Middleware should already have redirected unauthenticated requests.
+    // This branch is defense-in-depth for the client-side render cycle.
+    return (
+      <div className="min-h-screen bg-[#001D14] flex items-center justify-center text-white text-sm font-sans-body">
+        Loading IP-SAKTI...
+      </div>
+    );
   }
 
   return (

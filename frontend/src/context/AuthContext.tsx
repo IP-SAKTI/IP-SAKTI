@@ -2,6 +2,31 @@
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Cookie helpers — used by Next.js middleware for server-side route protection.
+// The cookie is NOT an auth source-of-truth; it is only a routing hint.
+// All real session validation is done via Supabase through /auth/verify.
+// ─────────────────────────────────────────────────────────────────────────────
+
+const SESSION_COOKIE_NAME = 'ipsakti_session';
+
+/** Set the routing-hint cookie so middleware can gate protected routes. */
+function setSessionCookie(): void {
+  if (typeof document === 'undefined') return;
+  // SameSite=Lax prevents CSRF; no Secure flag needed for localhost dev.
+  document.cookie = `${SESSION_COOKIE_NAME}=1; path=/; SameSite=Lax`;
+}
+
+/** Clear the routing-hint cookie on logout or session expiry. */
+function clearSessionCookie(): void {
+  if (typeof document === 'undefined') return;
+  document.cookie = `${SESSION_COOKIE_NAME}=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax`;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Types
+// ─────────────────────────────────────────────────────────────────────────────
+
 export interface UserProfile {
   fullName: string;
   email: string;
@@ -19,13 +44,18 @@ export interface UserSession {
 interface AuthContextType {
   user: UserSession | null;
   profile: UserProfile | null;
+  /** True while the Supabase session check is in flight. */
   isLoading: boolean;
   login: (email: string, password?: string) => Promise<boolean>;
   register: (fullName: string, email: string, password?: string) => Promise<boolean>;
   updateProfile: (updated: Partial<UserProfile>) => Promise<boolean>;
   sendMagicLink: (email: string) => Promise<{ ok: boolean; message: string }>;
-  logout: () => void;
+  logout: () => Promise<void>;
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Context
+// ─────────────────────────────────────────────────────────────────────────────
 
 const AuthContext = createContext<AuthContextType>({
   user: null,
@@ -35,31 +65,43 @@ const AuthContext = createContext<AuthContextType>({
   register: async () => false,
   updateProfile: async () => false,
   sendMagicLink: async () => ({ ok: false, message: 'Not initialized' }),
-  logout: () => {},
+  logout: async () => {},
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Provider
+// ─────────────────────────────────────────────────────────────────────────────
 
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [user, setUser] = useState<UserSession | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
+  /**
+   * isLoading starts TRUE and is set to FALSE only after the Supabase
+   * session check completes (success or failure).
+   * Protected pages must NOT render content until isLoading === false.
+   */
   const [isLoading, setIsLoading] = useState<boolean>(true);
 
   const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
+  // ── Session verification on mount ─────────────────────────────────────────
   useEffect(() => {
     async function verifySession() {
       try {
         const token = localStorage.getItem('ipsakti_auth_token');
+
         if (!token) {
+          // No stored token → definitively unauthenticated
           setUser(null);
           setProfile(null);
+          clearSessionCookie();
           setIsLoading(false);
           return;
         }
 
+        // Validate the stored token against Supabase via our backend proxy
         const res = await fetch(`${API_BASE}/auth/verify`, {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
+          headers: { Authorization: `Bearer ${token}` },
         });
 
         if (res.ok) {
@@ -67,11 +109,14 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           if (data && data.user) {
             const verifiedUser: UserSession = {
               id: data.user.id,
-              email: data.user.email || 'user@ipsakti.gov.in',
+              email: data.user.email || '',
             };
             const verifiedProfile: UserProfile = {
-              fullName: data.user.name || data.user.email?.split('@')[0] || 'Researcher',
-              email: data.user.email || 'user@ipsakti.gov.in',
+              fullName:
+                data.user.name ||
+                data.user.email?.split('@')[0] ||
+                'Researcher',
+              email: data.user.email || '',
               organization: 'IP-SAKTI',
               role: 'Researcher',
               bio: '',
@@ -79,43 +124,64 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
             };
             setUser(verifiedUser);
             setProfile(verifiedProfile);
-            localStorage.setItem('ipsakti_auth_session', JSON.stringify(verifiedUser));
-            localStorage.setItem('ipsakti_user_profile', JSON.stringify(verifiedProfile));
+            localStorage.setItem(
+              'ipsakti_auth_session',
+              JSON.stringify(verifiedUser)
+            );
+            localStorage.setItem(
+              'ipsakti_user_profile',
+              JSON.stringify(verifiedProfile)
+            );
+            // ← Cookie confirms a valid session exists for middleware
+            setSessionCookie();
           } else {
-            throw new Error('Invalid user payload');
+            throw new Error('Invalid user payload from /auth/verify');
           }
         } else {
-          // Token expired or invalid
-          setUser(null);
-          setProfile(null);
-          localStorage.removeItem('ipsakti_auth_token');
-          localStorage.removeItem('ipsakti_auth_session');
-          localStorage.removeItem('ipsakti_user_profile');
-          localStorage.removeItem('ipsakti_active_conversation_id');
+          // Token rejected by Supabase (expired or revoked)
+          _clearAllAuthState();
         }
       } catch (err) {
         console.warn('Session verification failed:', err);
-        setUser(null);
-        setProfile(null);
-        localStorage.removeItem('ipsakti_auth_token');
-        localStorage.removeItem('ipsakti_auth_session');
-        localStorage.removeItem('ipsakti_user_profile');
+        _clearAllAuthState();
       } finally {
         setIsLoading(false);
       }
     }
 
     verifySession();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [API_BASE]);
 
-  const login = async (emailInput: string, passwordInput?: string): Promise<boolean> => {
+  // ── Internal helper — wipe all auth state ─────────────────────────────────
+  function _clearAllAuthState(): void {
+    setUser(null);
+    setProfile(null);
+    clearSessionCookie();
+    if (typeof localStorage !== 'undefined') {
+      localStorage.removeItem('ipsakti_auth_token');
+      localStorage.removeItem('ipsakti_auth_refresh_token');
+      localStorage.removeItem('ipsakti_auth_session');
+      localStorage.removeItem('ipsakti_user_profile');
+      localStorage.removeItem('ipsakti_active_conversation_id');
+    }
+  }
+
+  // ── Login with email + password ───────────────────────────────────────────
+  const login = async (
+    emailInput: string,
+    passwordInput?: string
+  ): Promise<boolean> => {
     setIsLoading(true);
     const cleanEmail = emailInput.trim().toLowerCase();
     try {
       const res = await fetch(`${API_BASE}/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: cleanEmail, password: passwordInput || '' }),
+        body: JSON.stringify({
+          email: cleanEmail,
+          password: passwordInput || '',
+        }),
       });
 
       if (res.ok) {
@@ -124,7 +190,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           id: data.user.id,
           email: data.user.email || cleanEmail,
         };
-
         const profileData: UserProfile = {
           fullName: data.user.name || cleanEmail.split('@')[0],
           email: data.user.email || cleanEmail,
@@ -136,11 +201,19 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
         setUser(sessionData);
         setProfile(profileData);
-        localStorage.setItem('ipsakti_auth_session', JSON.stringify(sessionData));
-        localStorage.setItem('ipsakti_user_profile', JSON.stringify(profileData));
+        localStorage.setItem(
+          'ipsakti_auth_session',
+          JSON.stringify(sessionData)
+        );
+        localStorage.setItem(
+          'ipsakti_user_profile',
+          JSON.stringify(profileData)
+        );
         if (data.token) {
           localStorage.setItem('ipsakti_auth_token', data.token);
         }
+        // ← Set cookie so middleware recognises the session on next navigation
+        setSessionCookie();
         setIsLoading(false);
         return true;
       }
@@ -148,17 +221,18 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       console.warn('FastAPI auth login error:', err);
     }
 
-    // Strictly reject invalid credentials without fallback
-    setUser(null);
-    setProfile(null);
-    localStorage.removeItem('ipsakti_auth_token');
-    localStorage.removeItem('ipsakti_auth_session');
-    localStorage.removeItem('ipsakti_user_profile');
+    // Reject invalid credentials without any fallback
+    _clearAllAuthState();
     setIsLoading(false);
     return false;
   };
 
-  const register = async (fullNameInput: string, emailInput: string, passwordInput?: string): Promise<boolean> => {
+  // ── Register ──────────────────────────────────────────────────────────────
+  const register = async (
+    fullNameInput: string,
+    emailInput: string,
+    passwordInput?: string
+  ): Promise<boolean> => {
     setIsLoading(true);
     const cleanEmail = emailInput.trim().toLowerCase();
     const cleanName = fullNameInput.trim();
@@ -181,7 +255,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           id: data.user.id,
           email: data.user.email || cleanEmail,
         };
-
         const profileData: UserProfile = {
           fullName: data.user.name || cleanName,
           email: data.user.email || cleanEmail,
@@ -193,11 +266,18 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
         setUser(sessionData);
         setProfile(profileData);
-        localStorage.setItem('ipsakti_auth_session', JSON.stringify(sessionData));
-        localStorage.setItem('ipsakti_user_profile', JSON.stringify(profileData));
+        localStorage.setItem(
+          'ipsakti_auth_session',
+          JSON.stringify(sessionData)
+        );
+        localStorage.setItem(
+          'ipsakti_user_profile',
+          JSON.stringify(profileData)
+        );
         if (data.token) {
           localStorage.setItem('ipsakti_auth_token', data.token);
         }
+        setSessionCookie();
         setIsLoading(false);
         return true;
       }
@@ -205,38 +285,58 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       console.warn('FastAPI auth register error:', err);
     }
 
-    setUser(null);
-    setProfile(null);
+    _clearAllAuthState();
     setIsLoading(false);
     return false;
   };
 
-  const updateProfile = async (updated: Partial<UserProfile>): Promise<boolean> => {
+  // ── Update profile ────────────────────────────────────────────────────────
+  const updateProfile = async (
+    updated: Partial<UserProfile>
+  ): Promise<boolean> => {
     return new Promise((resolve) => {
       setProfile((prev) => {
         const newProfile: UserProfile = {
           fullName: updated.fullName ?? prev?.fullName ?? 'User',
-          email: updated.email ?? prev?.email ?? user?.email ?? 'user@ipsakti.gov.in',
-          organization: updated.organization ?? prev?.organization ?? 'IP-SAKTI',
+          email:
+            updated.email ??
+            prev?.email ??
+            user?.email ??
+            '',
+          organization:
+            updated.organization ?? prev?.organization ?? 'IP-SAKTI',
           role: updated.role ?? prev?.role ?? 'Researcher',
-          bio: updated.bio !== undefined ? updated.bio : prev?.bio ?? '',
-          avatarUrl: updated.avatarUrl !== undefined ? updated.avatarUrl : prev?.avatarUrl ?? '',
+          bio:
+            updated.bio !== undefined ? updated.bio : prev?.bio ?? '',
+          avatarUrl:
+            updated.avatarUrl !== undefined
+              ? updated.avatarUrl
+              : prev?.avatarUrl ?? '',
         };
-        localStorage.setItem('ipsakti_user_profile', JSON.stringify(newProfile));
+        localStorage.setItem(
+          'ipsakti_user_profile',
+          JSON.stringify(newProfile)
+        );
         return newProfile;
       });
       resolve(true);
     });
   };
 
+  // ── Send Magic Link ───────────────────────────────────────────────────────
   /**
-   * Send a Supabase Magic Link email for passwordless sign-in.
-   * The backend calls Supabase /auth/v1/otp which dispatches the email.
-   * The user clicks the link → redirected to /auth/callback → session established.
+   * Triggers Supabase to send a passwordless sign-in email.
+   * The link redirects the user to /auth/callback where the session is
+   * established and the cookie is set before redirecting to the dashboard.
    */
-  const sendMagicLink = async (email: string): Promise<{ ok: boolean; message: string }> => {
+  const sendMagicLink = async (
+    email: string
+  ): Promise<{ ok: boolean; message: string }> => {
     const cleanEmail = email.trim().toLowerCase();
-    if (!cleanEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)) {
+    if (
+      !cleanEmail ||
+      !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)
+    ) {
       return { ok: false, message: 'Please enter a valid email address.' };
     }
     try {
@@ -250,42 +350,57 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       });
       if (res.ok) {
         const data = await res.json();
-        return { ok: true, message: data.message || 'Magic link sent. Please check your email.' };
+        return {
+          ok: true,
+          message:
+            data.message || 'Magic link sent. Please check your email.',
+        };
       }
       const errData = await res.json().catch(() => ({}));
-      return { ok: false, message: errData.detail || 'Failed to send magic link. Please try again.' };
+      return {
+        ok: false,
+        message:
+          errData.detail ||
+          'Failed to send magic link. Please try again.',
+      };
     } catch (err) {
       console.warn('sendMagicLink error:', err);
-      return { ok: false, message: 'Network error. Please check your connection and try again.' };
+      return {
+        ok: false,
+        message:
+          'Network error. Please check your connection and try again.',
+      };
     }
   };
 
-  const logout = async () => {
-    const token = typeof window !== 'undefined' ? localStorage.getItem('ipsakti_auth_token') : null;
-    setUser(null);
-    setProfile(null);
-    try {
-      if (token) {
-        await fetch(`${API_BASE}/auth/logout`, {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }).catch((err) => console.warn('Logout API call failed:', err));
-      }
-      localStorage.removeItem('ipsakti_auth_session');
-      localStorage.removeItem('ipsakti_user_profile');
-      localStorage.removeItem('ipsakti_auth_token');
-      localStorage.removeItem('ipsakti_active_conversation_id');
+  // ── Logout ────────────────────────────────────────────────────────────────
+  const logout = async (): Promise<void> => {
+    const token =
+      typeof window !== 'undefined'
+        ? localStorage.getItem('ipsakti_auth_token')
+        : null;
+
+    // Clear state and cookie FIRST so middleware rejects on next navigation
+    _clearAllAuthState();
+    if (typeof sessionStorage !== 'undefined') {
       sessionStorage.clear();
-    } catch (err) {
-      console.warn('Logout storage cleanup error:', err);
     }
+
+    // Then call Supabase logout (fire-and-forget — don't block redirect on it)
+    if (token) {
+      fetch(`${API_BASE}/auth/logout`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      }).catch((err) => console.warn('Logout API call failed:', err));
+    }
+
+    // Hard navigate so the middleware evaluates the cleared cookie immediately
     if (typeof window !== 'undefined') {
       window.location.href = '/login';
     }
   };
 
+  // ─────────────────────────────────────────────────────────────────────────
   return (
     <AuthContext.Provider
       value={{

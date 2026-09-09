@@ -13,7 +13,7 @@ import { useAuth } from '@/context/AuthContext';
 
 export default function SettingsPage() {
   const router = useRouter();
-  const { user, profile: authProfile, isLoading: authLoading, updateProfile } = useAuth();
+  const { user, profile: authProfile, isLoading: authLoading, updateProfile, logout } = useAuth();
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
 
@@ -122,7 +122,11 @@ export default function SettingsPage() {
   }
 
   if (!user) {
-    return null;
+    return (
+      <div className="min-h-screen bg-[#001D14] flex items-center justify-center text-white text-sm font-sans-body">
+        Loading IP-SAKTI...
+      </div>
+    );
   }
 
   return (
@@ -134,7 +138,7 @@ export default function SettingsPage() {
         onSelectConversation={handleSelectConversation}
         onNewChat={() => (window.location.href = '/')}
         onDeleteConversation={handleDeleteConversation}
-        onLogout={() => (window.location.href = '/login')}
+        onLogout={logout}
       />
 
       {/* 2. MAIN APPLICATION CONTENT AREA */}
@@ -167,7 +171,7 @@ export default function SettingsPage() {
             <HeaderUserProfile
               userName={fullName}
               userEmail={email}
-              onLogout={() => (window.location.href = '/login')}
+              onLogout={logout}
             />
           </div>
         </header>

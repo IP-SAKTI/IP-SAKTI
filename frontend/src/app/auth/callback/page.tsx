@@ -18,6 +18,12 @@ import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Loader2, CheckCircle2, AlertTriangle } from 'lucide-react';
 
+/** Mirrors the AuthContext cookie helper — sets the routing-hint cookie. */
+function setSessionCookie(): void {
+  if (typeof document === 'undefined') return;
+  document.cookie = `ipsakti_session=1; path=/; SameSite=Lax`;
+}
+
 type CallbackState = 'verifying' | 'success' | 'error';
 
 export default function AuthCallbackPage() {
@@ -89,6 +95,9 @@ export default function AuthCallbackPage() {
           localStorage.setItem('ipsakti_auth_session', JSON.stringify(sessionData));
           localStorage.setItem('ipsakti_user_profile', JSON.stringify(profileData));
         }
+
+        // --- 5. Set session cookie so middleware recognises this session on next request ---
+        setSessionCookie();
 
         // Clean hash from URL before redirecting (security hygiene)
         if (window.history.replaceState) {
