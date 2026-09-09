@@ -1,0 +1,118 @@
+@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400;1,600&family=IBM+Plex+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&display=swap');
+@import "tailwindcss";
+
+:root {
+  --forest-dark: #003E29;
+  --forest-deep: #003322;
+  --forest-mid: #044D34;
+  --forest-accent: #195941;
+  --bg-cream: #EEF3E4;
+  --bg-cream-soft: #F4F7EB;
+  --card-bg: #FAFDF6;
+  --card-border: #C8D7C2;
+  --text-dark: #003E29;
+  --text-muted: #385246;
+  --text-light: #E2EFE9;
+  --text-muted-light: #7B9F8E;
+  --accent-gold: #C99738;
+}
+
+body {
+  background-color: var(--bg-cream);
+  color: var(--text-dark);
+  font-family: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+  overflow-x: hidden;
+  margin: 0;
+  padding: 0;
+}
+
+.font-serif-heading {
+  font-family: 'Cormorant Garamond', Georgia, serif;
+}
+
+.font-sans-body {
+  font-family: 'IBM Plex Sans', sans-serif;
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(0, 62, 41, 0.04);
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(0, 62, 41, 0.25);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 62, 41, 0.45);
+}
+
+/* Botanical Container */
+.botanical-bg-container {
+  position: fixed;
+  top: 0;
+  left: 270px;
+  right: 0;
+  bottom: 0;
+  pointer-events: none;
+  z-index: 0;
+  overflow: hidden;
+}
+
+@media (max-width: 1024px) {
+  .botanical-bg-container {
+    left: 0;
+  }
+}
+
+.botanical-leaf {
+  position: absolute;
+  pointer-events: none;
+}
+
+.bot-top-left {
+  top: -40px;
+  left: -20px;
+  opacity: 0.82;
+}
+
+.bot-top-right {
+  top: -50px;
+  right: -30px;
+  opacity: 0.85;
+}
+
+.bot-bottom-left {
+  bottom: -30px;
+  left: -20px;
+  opacity: 0.82;
+}
+
+.bot-bottom-right {
+  bottom: -40px;
+  right: -30px;
+  opacity: 0.88;
+}
+
+.bot-float-1 {
+  top: 140px;
+  right: 280px;
+  opacity: 0.55;
+  transform: rotate(25deg);
+}
+
+/* Card Hover Effects */
+.card-hover-effect {
+  transition: transform 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease;
+}
+
+.card-hover-effect:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 14px rgba(0, 62, 41, 0.08);
+}
