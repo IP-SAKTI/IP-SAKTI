@@ -2,27 +2,45 @@
 
 import React, { useState, useRef, useEffect, KeyboardEvent } from 'react';
 import { Search, Send, Loader2, Globe, Mic, Square, AlertCircle, XCircle } from 'lucide-react';
+import { transcribeAudio } from '@/lib/api';
 
 interface ChatInputBarProps {
   onSendMessage: (query: string) => void;
   isLoading?: boolean;
 }
 
+interface VoiceLangInfo {
+  code: string;
+  name: string;
+  translatedText?: string | null;
+}
+
 const VOICE_LANGUAGES = [
-  { code: 'en-IN', label: 'English (EN)' },
-  { code: 'hi-IN', label: 'Hindi (हिन्दी)' },
-  { code: 'te-IN', label: 'Telugu (తెలుగు)' },
-  { code: 'kn-IN', label: 'Kannada (ಕನ್ನಡ)' },
+  { code: 'en-IN', langCode: 'en', label: 'English (EN)' },
+  { code: 'hi-IN', langCode: 'hi', label: 'Hindi (हिन्दी)' },
+  { code: 'te-IN', langCode: 'te', label: 'Telugu (తెలుగు)' },
+  { code: 'kn-IN', langCode: 'kn', label: 'Kannada (ಕನ್ನಡ)' },
 ];
+
+const LANG_NAME_MAP: Record<string, string> = {
+  en: 'English',
+  hi: 'Hindi',
+  te: 'Telugu',
+  kn: 'Kannada',
+};
 
 export default function ChatInputBar({ onSendMessage, isLoading = false }: ChatInputBarProps) {
   const [query, setQuery] = useState('');
   const [selectedLang, setSelectedLang] = useState<string>('en-IN');
   const [isRecording, setIsRecording] = useState(false);
+  const [isTranscribing, setIsTranscribing] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
   const [audioError, setAudioError] = useState<string | null>(null);
+  const [voiceLangInfo, setVoiceLangInfo] = useState<VoiceLangInfo | null>(null);
 
   const recognitionRef = useRef<any>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
   const isCancelledRef = useRef<boolean>(false);
@@ -36,23 +54,132 @@ export default function ChatInputBar({ onSendMessage, isLoading = false }: ChatI
         try {
           recognitionRef.current.abort();
         } catch (e) {
-          // Ignore cleanup errors
+          // Ignore cleanup error
+        }
+      }
+      if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+        try {
+          mediaRecorderRef.current.stop();
+        } catch (e) {
+          // Ignore cleanup error
         }
       }
     };
   }, []);
 
-  const startRecording = () => {
-    setAudioError(null);
-    isCancelledRef.current = false;
-    hasReceivedSpeechRef.current = false;
-    initialQueryRef.current = query;
+  const startMediaRecorder = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      audioChunksRef.current = [];
 
+      let mimeType = '';
+      if (MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) {
+        mimeType = 'audio/webm;codecs=opus';
+      } else if (MediaRecorder.isTypeSupported('audio/webm')) {
+        mimeType = 'audio/webm';
+      } else if (MediaRecorder.isTypeSupported('audio/mp4')) {
+        mimeType = 'audio/mp4';
+      }
+
+      const mediaRecorder = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream);
+      mediaRecorderRef.current = mediaRecorder;
+
+      mediaRecorder.ondataavailable = (event) => {
+        if (!isCancelledRef.current && event.data && event.data.size > 0) {
+          audioChunksRef.current.push(event.data);
+        }
+      };
+
+      mediaRecorder.onstop = async () => {
+        stream.getTracks().forEach((track) => track.stop());
+        if (timerRef.current) clearInterval(timerRef.current);
+
+        if (isCancelledRef.current) {
+          audioChunksRef.current = [];
+          setIsRecording(false);
+          setRecordingTime(0);
+          return;
+        }
+
+        setIsRecording(false);
+        setRecordingTime(0);
+
+        if (audioChunksRef.current.length === 0) {
+          setAudioError('No audio recorded. Please try speaking again.');
+          return;
+        }
+
+        const audioBlob = new Blob(audioChunksRef.current, {
+          type: mediaRecorder.mimeType || 'audio/webm',
+        });
+
+        if (audioBlob.size < 100) {
+          setAudioError('Audio recording was empty. Please speak clearly.');
+          return;
+        }
+
+        setIsTranscribing(true);
+        try {
+          const res = await transcribeAudio(audioBlob);
+          if (res.error) {
+            setAudioError(
+              res.error === 'Unsupported voice language' || res.language === 'unsupported'
+                ? 'Unsupported voice language. Please speak in English, Hindi, Telugu, or Kannada.'
+                : res.error
+            );
+            setVoiceLangInfo(null);
+          } else if (res.transcript && res.language && res.language !== 'unsupported') {
+            const cleanTranscript = res.transcript.trim();
+            const baseQuery = initialQueryRef.current.trim();
+            setQuery(baseQuery ? `${baseQuery} ${cleanTranscript}` : cleanTranscript);
+
+            if (res.language !== 'en' && LANG_NAME_MAP[res.language]) {
+              setVoiceLangInfo({
+                code: res.language,
+                name: LANG_NAME_MAP[res.language],
+                translatedText: res.translated_text,
+              });
+            } else {
+              setVoiceLangInfo(null);
+            }
+
+            setTimeout(() => {
+              inputRef.current?.focus();
+            }, 100);
+          }
+        } catch (err: any) {
+          console.error('Transcription error:', err);
+          setAudioError(err.message || 'Failed to transcribe audio.');
+        } finally {
+          setIsTranscribing(false);
+        }
+      };
+
+      mediaRecorder.start(250);
+      setIsRecording(true);
+      setRecordingTime(0);
+
+      if (timerRef.current) clearInterval(timerRef.current);
+      timerRef.current = setInterval(() => {
+        setRecordingTime((prev) => prev + 1);
+      }, 1000);
+    } catch (err: any) {
+      console.error('Microphone access error:', err);
+      if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+        setAudioError('Microphone permission was denied.');
+      } else {
+        setAudioError('Could not access microphone: ' + (err.message || 'Unknown error'));
+      }
+    }
+  };
+
+  const startWebSpeechRecognition = () => {
     const SpeechRecognition =
       (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
 
     if (!SpeechRecognition) {
-      setAudioError('Voice input is not supported in this browser. Please use Google Chrome.');
+      // Fallback to MediaRecorder + Whisper backend if Web Speech API is missing
+      startMediaRecorder();
       return;
     }
 
@@ -93,11 +220,14 @@ export default function ChatInputBar({ onSendMessage, isLoading = false }: ChatI
 
       recognition.onerror = (event: any) => {
         const errCode = event.error;
-        const errMsg = event.message || '';
-        console.log('VOICE ERROR:', errCode, errMsg);
+        console.log('VOICE ERROR:', errCode, event.message);
 
-        if (isCancelledRef.current || errCode === 'aborted') {
-          // Do NOT show an error if intentionally cancelled or aborted
+        if (isCancelledRef.current || errCode === 'aborted') return;
+
+        // If Web Speech API fails for Indic languages or network, fallback to MediaRecorder + Whisper backend!
+        if (errCode === 'no-speech' && !hasReceivedSpeechRef.current) {
+          console.warn('Web Speech API emitted no-speech, falling back to Whisper backend...');
+          startMediaRecorder();
           return;
         }
 
@@ -105,13 +235,10 @@ export default function ChatInputBar({ onSendMessage, isLoading = false }: ChatI
           setAudioError('Microphone permission was denied.');
         } else if (errCode === 'audio-capture') {
           setAudioError('No microphone was detected.');
-        } else if (errCode === 'no-speech') {
-          if (!hasReceivedSpeechRef.current) {
-            setAudioError('No speech detected. Please try speaking clearly.');
-          }
         } else if (errCode === 'network') {
-          setAudioError('Speech recognition network error. Please try again.');
-        } else if (errCode !== 'service-not-allowed') {
+          // Fallback on network failure
+          startMediaRecorder();
+        } else {
           setAudioError(`Voice error: ${errCode || 'Unknown error'}`);
         }
       };
@@ -134,9 +261,25 @@ export default function ChatInputBar({ onSendMessage, isLoading = false }: ChatI
       };
 
       recognition.start();
-    } catch (err: any) {
-      console.error('Speech recognition start error:', err);
-      setAudioError('Could not start voice recognition: ' + (err.message || 'Unknown error'));
+    } catch (err) {
+      console.warn('SpeechRecognition failed to start, falling back to MediaRecorder:', err);
+      startMediaRecorder();
+    }
+  };
+
+  const startRecording = () => {
+    setAudioError(null);
+    setVoiceLangInfo(null);
+    isCancelledRef.current = false;
+    hasReceivedSpeechRef.current = false;
+    initialQueryRef.current = query;
+
+    // For Indic languages (Telugu, Hindi, Kannada), use high-accuracy Whisper backend via MediaRecorder.
+    // For English (en-IN), try Web Speech API first with auto-fallback to Whisper backend.
+    if (selectedLang === 'en-IN') {
+      startWebSpeechRecognition();
+    } else {
+      startMediaRecorder();
     }
   };
 
@@ -144,26 +287,35 @@ export default function ChatInputBar({ onSendMessage, isLoading = false }: ChatI
     if (recognitionRef.current) {
       try {
         recognitionRef.current.stop();
-      } catch (e) {
-        console.warn('Error stopping speech recognition:', e);
-      }
+      } catch (e) {}
+    }
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+      try {
+        mediaRecorderRef.current.stop();
+      } catch (e) {}
     }
   };
 
   const cancelRecording = () => {
     isCancelledRef.current = true;
     if (timerRef.current) clearInterval(timerRef.current);
+    audioChunksRef.current = [];
     setIsRecording(false);
+    setIsTranscribing(false);
     setRecordingTime(0);
     setAudioError(null);
+    setVoiceLangInfo(null);
     setQuery(initialQueryRef.current);
 
     if (recognitionRef.current) {
       try {
         recognitionRef.current.abort();
-      } catch (e) {
-        console.warn('Error aborting speech recognition:', e);
-      }
+      } catch (e) {}
+    }
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+      try {
+        mediaRecorderRef.current.stop();
+      } catch (e) {}
     }
   };
 
@@ -177,9 +329,10 @@ export default function ChatInputBar({ onSendMessage, isLoading = false }: ChatI
 
   const handleSubmit = () => {
     const trimmed = query.trim();
-    if (!trimmed || isLoading || isRecording) return;
+    if (!trimmed || isLoading || isRecording || isTranscribing) return;
     onSendMessage(trimmed);
     setQuery('');
+    setVoiceLangInfo(null);
   };
 
   const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
@@ -208,10 +361,12 @@ export default function ChatInputBar({ onSendMessage, isLoading = false }: ChatI
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={handleKeyDown}
-            disabled={isLoading || isRecording}
+            disabled={isLoading || isRecording || isTranscribing}
             placeholder={
               isRecording
                 ? `🔴 Listening (${activeLangObj.label})... (${formatSeconds(recordingTime)})`
+                : isTranscribing
+                ? 'Processing voice query (Whisper base)...'
                 : 'Ask about Traditional Knowledge, patents, AYUSH or ABS... (English / हिन्दी / తెలుగు / ಕನ್ನಡ)'
             }
             className="flex-1 bg-transparent py-2.5 text-sm text-[#003E29] placeholder-[#7C817A] focus:outline-none font-sans-body"
@@ -221,7 +376,7 @@ export default function ChatInputBar({ onSendMessage, isLoading = false }: ChatI
           <select
             value={selectedLang}
             onChange={(e) => setSelectedLang(e.target.value)}
-            disabled={isRecording || isLoading}
+            disabled={isRecording || isTranscribing || isLoading}
             title="Select voice language"
             aria-label="Select voice language"
             className="h-9 text-xs font-medium text-[#003E29] bg-[#F0F5EE] border border-[#C8D7C2] hover:border-[#003E29] rounded-lg px-2 py-1 focus:outline-none cursor-pointer shrink-0 transition-colors"
@@ -251,16 +406,23 @@ export default function ChatInputBar({ onSendMessage, isLoading = false }: ChatI
           <button
             type="button"
             onClick={toggleRecording}
-            disabled={isLoading}
-            title={isRecording ? 'Stop speech recognition' : 'Start voice recognition'}
+            disabled={isLoading || isTranscribing}
+            title={isRecording ? 'Stop voice recording' : 'Start voice input'}
             aria-label={isRecording ? 'Stop voice recording' : 'Start voice input'}
             className={`h-9 px-2.5 rounded-lg flex items-center justify-center gap-1.5 transition-all duration-200 shrink-0 cursor-pointer ${
               isRecording
                 ? 'bg-red-50 text-red-600 border border-red-200 animate-pulse font-medium text-xs'
+                : isTranscribing
+                ? 'bg-[#F0F4EF] text-[#003E29] border border-[#C8D7C2]/60 cursor-wait'
                 : 'text-[#385246] hover:text-[#003E29] hover:bg-[#E8EFE5] border border-transparent'
             }`}
           >
-            {isRecording ? (
+            {isTranscribing ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin text-[#003E29]" />
+                <span className="text-[11px] font-medium hidden sm:inline text-[#003E29]">Transcribing</span>
+              </>
+            ) : isRecording ? (
               <>
                 <Square className="w-3.5 h-3.5 fill-red-600 text-red-600" />
                 <span className="text-[11px] font-semibold text-red-600">Stop ({formatSeconds(recordingTime)})</span>
@@ -273,7 +435,7 @@ export default function ChatInputBar({ onSendMessage, isLoading = false }: ChatI
           {/* Submit Search Button */}
           <button
             onClick={handleSubmit}
-            disabled={!query.trim() || isLoading || isRecording}
+            disabled={!query.trim() || isLoading || isRecording || isTranscribing}
             aria-label="Submit research query"
             className="w-9 h-9 bg-[#003E29] hover:bg-[#044D34] disabled:bg-[#003E29]/30 text-white rounded-lg flex items-center justify-center transition-all duration-200 shrink-0 shadow-sm active:scale-95 cursor-pointer"
           >
@@ -284,6 +446,34 @@ export default function ChatInputBar({ onSendMessage, isLoading = false }: ChatI
             )}
           </button>
         </div>
+
+        {/* Multilingual Voice Language Badge Indicator */}
+        {voiceLangInfo && (
+          <div className="mx-3 my-1 px-3 py-1.5 bg-[#F0F5EE] border border-[#C8D7C2] text-[#003E29] rounded-md text-xs flex items-center justify-between transition-all">
+            <div className="flex items-center gap-2 overflow-hidden">
+              <span className="px-1.5 py-0.5 bg-[#003E29] text-white rounded text-[10px] uppercase font-mono font-bold shrink-0">
+                {voiceLangInfo.code}
+              </span>
+              <span className="font-semibold shrink-0">Detected: {voiceLangInfo.name}</span>
+              {voiceLangInfo.translatedText && (
+                <>
+                  <span className="text-[#7C817A] shrink-0">•</span>
+                  <span className="italic text-[#385246] truncate">
+                    Translation: &quot;{voiceLangInfo.translatedText}&quot;
+                  </span>
+                </>
+              )}
+            </div>
+            <button
+              type="button"
+              onClick={() => setVoiceLangInfo(null)}
+              className="text-[#7C817A] hover:text-[#003E29] font-bold ml-2 shrink-0 cursor-pointer"
+              title="Dismiss indicator"
+            >
+              ×
+            </button>
+          </div>
+        )}
 
         {/* Audio Error Alert Banner */}
         {audioError && (
@@ -305,7 +495,7 @@ export default function ChatInputBar({ onSendMessage, isLoading = false }: ChatI
         <div className="flex items-center justify-between px-3 pt-1 pb-1 border-t border-[#C8D7C2]/40 text-[11px] text-[#7B9F8E]">
           <div className="flex items-center gap-1.5">
             <Globe className="w-3 h-3 text-[#385246]" />
-            <span>Browser Web Speech API · Voice input (English / Hindi / Telugu / Kannada)</span>
+            <span>Multilingual Voice Input · Whisper Base & Web Speech API (English / Hindi / Telugu / Kannada)</span>
           </div>
           <div className="hidden sm:block">Press Enter ↵ to submit</div>
         </div>
