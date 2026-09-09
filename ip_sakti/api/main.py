@@ -396,7 +396,7 @@ async def transcribe_audio(file: UploadFile = File(...)):
     try:
         content = await file.read()
         from ip_sakti.services.transcription import transcribe_audio_bytes
-        res = transcribe_audio_bytes(content, filename=file.filename or "audio.webm")
+        res = transcribe_audio_bytes(content, filename=file.filename or "audio.webm", content_type=file.content_type)
         return res
     except Exception as e:
         logger.error(f"Transcription API error: {e}", exc_info=True)

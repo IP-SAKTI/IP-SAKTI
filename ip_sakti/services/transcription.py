@@ -2,8 +2,9 @@
 Voice Input / Speech-to-Text & Multilingual Translation Service for IP-SAKTI Sahayak
 
 Uses pretrained Whisper 'base' model with 2-stage audio language detection,
-explicit language enforcement (language=validated_lang, task="transcribe"),
+explicit language enforcement (task='transcribe', language=norm_lang),
 script consistency validation, and QueryTranslator for semantic English translation.
+Includes verbose === VOICE DEBUG === output for empirical diagnosis.
 """
 
 import os
@@ -107,28 +108,33 @@ def is_romanized_gibberish(text: str, source_lang: str) -> bool:
 def validate_script_consistency(text: str, lang_code: str) -> bool:
     """
     Enforce strict script consistency for the detected language:
-    - 'te' (Telugu) MUST NOT be written in Devanagari script (\u0900-\u097f).
-    - 'kn' (Kannada) MUST NOT be written in Devanagari script (\u0900-\u097f).
+    - 'te' (Telugu) MUST contain Telugu script characters (\u0c00-\u0c7f).
+    - 'kn' (Kannada) MUST contain Kannada script characters (\u0cb0-\u0cff).
+    - 'hi' (Hindi) MUST contain Devanagari script characters (\u0900-\u097f).
     """
-    if not text:
+    if not text or lang_code == "en":
         return True
 
     devanagari_count = sum(1 for c in text if '\u0900' <= c <= '\u097f')
     telugu_count = sum(1 for c in text if '\u0c00' <= c <= '\u0c7f')
     kannada_count = sum(1 for c in text if '\u0cb0' <= c <= '\u0cff')
 
-    if lang_code == "te" and devanagari_count > 0 and telugu_count == 0:
-        logger.error(f"Script Mismatch: language='te' but text is written in Devanagari script: '{text}'")
+    if lang_code == "te" and telugu_count == 0:
+        logger.error(f"Script Mismatch / Hallucination: language='te' but zero Telugu characters in '{text}'")
         return False
 
-    if lang_code == "kn" and devanagari_count > 0 and kannada_count == 0:
-        logger.error(f"Script Mismatch: language='kn' but text is written in Devanagari script: '{text}'")
+    if lang_code == "kn" and kannada_count == 0:
+        logger.error(f"Script Mismatch / Hallucination: language='kn' but zero Kannada characters in '{text}'")
+        return False
+
+    if lang_code == "hi" and devanagari_count == 0:
+        logger.error(f"Script Mismatch / Hallucination: language='hi' but zero Devanagari characters in '{text}'")
         return False
 
     return True
 
 
-def transcribe_audio_bytes(audio_bytes: bytes, filename: str = "audio.webm") -> dict:
+def transcribe_audio_bytes(audio_bytes: bytes, filename: str = "audio.webm", content_type: str = None) -> dict:
     """
     Transcribe audio bytes using pretrained Whisper model ('base').
     Uses 2-stage audio language detection, explicit language enforcement (task='transcribe', language=norm_lang),
@@ -137,6 +143,7 @@ def transcribe_audio_bytes(audio_bytes: bytes, filename: str = "audio.webm") -> 
     Args:
         audio_bytes: Raw bytes of the recorded audio file.
         filename: Original filename or hint for format extension.
+        content_type: MIME type of the uploaded audio file.
         
     Returns:
         dict: {
@@ -157,6 +164,8 @@ def transcribe_audio_bytes(audio_bytes: bytes, filename: str = "audio.webm") -> 
     ext = os.path.splitext(filename)[1]
     if not ext or len(ext) > 10:
         ext = ".webm"
+
+    mime = content_type or f"audio/{ext.lstrip('.')}"
 
     with tempfile.NamedTemporaryFile(suffix=ext, delete=False) as tmp:
         tmp.write(audio_bytes)
@@ -187,6 +196,20 @@ def transcribe_audio_bytes(audio_bytes: bytes, filename: str = "audio.webm") -> 
         # Reject unsupported audio language
         if norm_lang not in SUPPORTED_VOICE_LANGUAGES:
             logger.warning(f"Unsupported voice language detected: '{norm_lang}' (prob={detected_prob:.4f})")
+            
+            # Print Verbose Diagnostic Log to Terminal
+            print("\n" + "=" * 50, flush=True)
+            print("=== VOICE DEBUG ===", flush=True)
+            print(f"MIME: {mime}", flush=True)
+            print(f"Size: {len(audio_bytes)} bytes", flush=True)
+            print(f"Temp Audio Path: {tmp_path}", flush=True)
+            print(f"\nWhisper detected:\n{raw_lang}\nprobability:\n{detected_prob:.2f}", flush=True)
+            print(f"\nTranscription:\nlanguage={norm_lang}\ntask=transcribe", flush=True)
+            print(f"\nRAW TRANSCRIPT:\n<unsupported language '{norm_lang}'>", flush=True)
+            print(f"\nTRANSLATION INPUT:\nN/A", flush=True)
+            print(f"\nTRANSLATION OUTPUT:\nN/A", flush=True)
+            print("=" * 50 + "\n", flush=True)
+
             return {
                 "transcript": "",
                 "language": "unsupported",
@@ -221,16 +244,29 @@ def transcribe_audio_bytes(audio_bytes: bytes, filename: str = "audio.webm") -> 
 
         # ── Stage 3: Script Consistency Validation ─────────────────────────────────
         if not validate_script_consistency(raw_text, norm_lang):
-            logger.error(f"Script Mismatch Rejected: lang={norm_lang} cannot produce script of '{raw_text}'")
+            logger.error(f"Script Mismatch / Hallucination Rejected: lang={norm_lang} cannot produce script of '{raw_text}'")
             return {
                 "transcript": "",
                 "language": norm_lang,
                 "translated_text": None,
-                "error": "Transcription script mismatch. Please speak clearly."
+                "error": "No speech detected in audio. Please try speaking clearly."
             }
 
         # ── Stage 4: English vs Multilingual Semantic Translation ──────────────────
         if norm_lang == "en":
+            # Print Verbose Diagnostic Log to Terminal for English
+            print("\n" + "=" * 50, flush=True)
+            print("=== VOICE DEBUG ===", flush=True)
+            print(f"MIME: {mime}", flush=True)
+            print(f"Size: {len(audio_bytes)} bytes", flush=True)
+            print(f"Temp Audio Path: {tmp_path}", flush=True)
+            print(f"\nWhisper detected:\n{raw_lang}\nprobability:\n{detected_prob:.2f}", flush=True)
+            print(f"\nTranscription:\nlanguage={norm_lang}\ntask=transcribe", flush=True)
+            print(f"\nRAW TRANSCRIPT:\n{raw_text}", flush=True)
+            print(f"\nTRANSLATION INPUT:\n{raw_text}", flush=True)
+            print(f"\nTRANSLATION OUTPUT:\n{raw_text}", flush=True)
+            print("=" * 50 + "\n", flush=True)
+
             return {
                 "transcript": raw_text,
                 "language": "en",
@@ -266,6 +302,19 @@ def transcribe_audio_bytes(audio_bytes: bytes, filename: str = "audio.webm") -> 
                     logger.info(f"Whisper task=translate produced semantic translation: '{translated_text}'")
             except Exception as w_err:
                 logger.warning(f"Whisper translate task error: {w_err}")
+
+        # Print Verbose Diagnostic Log to Terminal
+        print("\n" + "=" * 50, flush=True)
+        print("=== VOICE DEBUG ===", flush=True)
+        print(f"MIME: {mime}", flush=True)
+        print(f"Size: {len(audio_bytes)} bytes", flush=True)
+        print(f"Temp Audio Path: {tmp_path}", flush=True)
+        print(f"\nWhisper detected:\n{raw_lang}\nprobability:\n{detected_prob:.2f}", flush=True)
+        print(f"\nTranscription:\nlanguage={norm_lang}\ntask=transcribe", flush=True)
+        print(f"\nRAW TRANSCRIPT:\n{raw_text}", flush=True)
+        print(f"\nTRANSLATION INPUT:\n{raw_text}", flush=True)
+        print(f"\nTRANSLATION OUTPUT:\n{translated_text}", flush=True)
+        print("=" * 50 + "\n", flush=True)
 
         if not translated_text or is_romanized_gibberish(translated_text, norm_lang):
             logger.warning(f"Translation failed or produced romanization for [{norm_lang}] '{raw_text}'")

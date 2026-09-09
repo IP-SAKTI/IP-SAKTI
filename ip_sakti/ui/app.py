@@ -848,15 +848,12 @@ def render_sidebar(
         st.rerun()
 
     if st.sidebar.button("🚪 Logout", key="sb_btn_logout", use_container_width=True):
-<<<<<<< HEAD
         # Revoke persistent session + delete cookie + clear query params
         try:
             if "session" in st.query_params:
                 del st.query_params["session"]
         except Exception:
             pass
-=======
->>>>>>> 874b31c (feat(ui): recreate frontend UI to match reference screenshot exactly)
         cookie_manager = _get_cookie_manager()
         if cookie_manager is not None:
             signed_token = cookie_manager.get(COOKIE_NAME)

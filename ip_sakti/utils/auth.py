@@ -12,7 +12,33 @@ from typing import Any, Dict, Optional, Tuple
 
 from ip_sakti.utils.supabase_auth import SupabaseAuthService
 
+import hashlib
+import secrets
+
 logger = logging.getLogger(__name__)
+
+
+def hash_password(password: str) -> str:
+    """Hash password using PBKDF2-HMAC-SHA256 with random salt."""
+    salt = secrets.token_hex(16)
+    iterations = 100000
+    key = hashlib.pbkdf2_hmac('sha256', password.encode('utf-8'), salt.encode('utf-8'), iterations)
+    return f"pbkdf2_sha256${iterations}${salt}${key.hex()}"
+
+
+def verify_password(password: str, hashed_password: str) -> bool:
+    """Verify password against PBKDF2 hash string."""
+    try:
+        parts = hashed_password.split('$')
+        if len(parts) != 4 or parts[0] != 'pbkdf2_sha256':
+            return False
+        iterations = int(parts[1])
+        salt = parts[2]
+        key = parts[3]
+        new_key = hashlib.pbkdf2_hmac('sha256', password.encode('utf-8'), salt.encode('utf-8'), iterations)
+        return secrets.compare_digest(new_key.hex(), key)
+    except Exception:
+        return False
 
 
 class AuthService:
