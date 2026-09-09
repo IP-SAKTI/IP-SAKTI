@@ -1,10 +1,14 @@
 """
 Voice Input / Speech-to-Text & Multilingual Translation Service for IP-SAKTI Sahayak
 
-Uses pretrained Whisper 'base' model with 2-stage audio language detection,
-explicit language enforcement (task='transcribe', language=norm_lang),
+Supports language-routed ASR:
+- English ('en') -> Pretrained Whisper 'base'
+- Hindi ('hi')   -> Pretrained Whisper 'base'
+- Telugu ('te')  -> AI4Bharat / Fine-Tuned Indic ASR (vasista22/whisper-telugu-base)
+- Kannada ('kn') -> AI4Bharat / Fine-Tuned Indic ASR (vasista22/whisper-kannada-base)
+
+Includes 16 kHz mono WAV audio normalization, authoritative language routing,
 script consistency validation, and QueryTranslator for semantic English translation.
-Includes verbose === VOICE DEBUG === output for empirical diagnosis.
 """
 
 import os
@@ -12,8 +16,19 @@ import sys
 import shutil
 import tempfile
 import logging
+import subprocess
+import time
 
 logger = logging.getLogger(__name__)
+
+# Ensure HF_HOME points to a valid local directory
+try:
+    hf_cache = os.path.join(os.path.expanduser("~"), ".cache", "huggingface")
+    os.makedirs(hf_cache, exist_ok=True)
+    os.environ["HF_HOME"] = hf_cache
+    os.environ["TRANSFORMERS_CACHE"] = hf_cache
+except Exception as hf_err:
+    logger.warning(f"Could not set HF_HOME cache dir: {hf_err}")
 
 # Ensure ffmpeg binary from imageio-ffmpeg is copied as ffmpeg.exe and added to PATH
 try:
@@ -36,6 +51,7 @@ except Exception as e:
 
 _WHISPER_MODEL = None
 _QUERY_TRANSLATOR = None
+_INDIC_ASR_PIPELINES = {}
 
 SUPPORTED_VOICE_LANGUAGES = {"en", "hi", "te", "kn"}
 
@@ -69,6 +85,34 @@ def get_whisper_model(model_name: str = "base"):
     return _WHISPER_MODEL
 
 
+def get_indic_asr_pipeline(lang_code: str):
+    """
+    Lazy-load and return cached HuggingFace ASR pipeline for Telugu ('te') or Kannada ('kn').
+    Uses fine-tuned Indian ASR models:
+    - 'te': vasista22/whisper-telugu-base
+    - 'kn': vasista22/whisper-kannada-base
+    """
+    global _INDIC_ASR_PIPELINES
+    if lang_code not in _INDIC_ASR_PIPELINES:
+        import torch
+        from transformers import pipeline
+        
+        model_name = "vasista22/whisper-telugu-base" if lang_code == "te" else "vasista22/whisper-kannada-base"
+        logger.info(f"Loading Indic ASR pipeline for '{lang_code}' using model '{model_name}'...")
+        
+        cache_dir = os.environ.get("HF_HOME") or os.path.join(os.path.expanduser("~"), ".cache", "huggingface")
+        pipe = pipeline(
+            "automatic-speech-recognition",
+            model=model_name,
+            dtype=torch.float32,
+            device="cpu",
+            model_kwargs={"cache_dir": cache_dir}
+        )
+        _INDIC_ASR_PIPELINES[lang_code] = pipe
+        logger.info(f"Loaded Indic ASR pipeline for '{lang_code}'.")
+    return _INDIC_ASR_PIPELINES[lang_code]
+
+
 def get_query_translator():
     """
     Lazy-load and return cached singleton instance of QueryTranslator.
@@ -78,6 +122,32 @@ def get_query_translator():
         from ip_sakti.multilingual.translator import QueryTranslator
         _QUERY_TRANSLATOR = QueryTranslator()
     return _QUERY_TRANSLATOR
+
+
+def normalize_audio_to_wav16k(input_path: str) -> str:
+    """
+    Normalize audio file to mono 16,000 Hz WAV using ffmpeg.
+    Returns path to temporary 16kHz mono WAV file.
+    """
+    wav_path = tempfile.NamedTemporaryFile(suffix=".wav", delete=False).name
+    cmd = [
+        "ffmpeg", "-y",
+        "-i", input_path,
+        "-ac", "1",
+        "-ar", "16000",
+        wav_path
+    ]
+    try:
+        res = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        if res.returncode == 0 and os.path.exists(wav_path) and os.path.getsize(wav_path) > 0:
+            logger.info(f"Normalized audio to 16kHz WAV: {wav_path} ({os.path.getsize(wav_path)} bytes)")
+            return wav_path
+        else:
+            logger.warning(f"ffmpeg normalization returned non-zero code {res.returncode}. Using input path.")
+            return input_path
+    except Exception as e:
+        logger.warning(f"Audio normalization via ffmpeg failed: {e}. Using input path.")
+        return input_path
 
 
 def is_romanized_gibberish(text: str, source_lang: str) -> bool:
@@ -108,9 +178,9 @@ def is_romanized_gibberish(text: str, source_lang: str) -> bool:
 def validate_script_consistency(text: str, lang_code: str) -> bool:
     """
     Enforce strict script consistency for the detected language:
-    - 'te' (Telugu) MUST contain Telugu script characters (\u0c00-\u0c7f).
-    - 'kn' (Kannada) MUST contain Kannada script characters (\u0c80-\u0cff).
-    - 'hi' (Hindi) MUST contain Devanagari script characters (\u0900-\u097f).
+    - 'te' (Telugu) MUST contain Telugu script characters (U+0C00–U+0C7F).
+    - 'kn' (Kannada) MUST contain Kannada script characters (U+0C80–U+0CFF).
+    - 'hi' (Hindi) MUST contain Devanagari script characters (U+0900–U+097F).
     """
     if not text or lang_code == "en":
         return True
@@ -141,15 +211,20 @@ def transcribe_audio_bytes(
     target_lang: str = None
 ) -> dict:
     """
-    Transcribe audio bytes using pretrained Whisper model ('base').
-    Uses explicit language enforcement (task='transcribe', language=norm_lang),
-    and script consistency validation.
+    Transcribe audio bytes using language-routed STT architecture:
+    - English ('en') -> Whisper Base
+    - Hindi ('hi')   -> Whisper Base
+    - Telugu ('te')  -> IndicConformer / Fine-tuned Telugu ASR (vasista22/whisper-telugu-base)
+    - Kannada ('kn') -> IndicConformer / Fine-tuned Kannada ASR (vasista22/whisper-kannada-base)
+
+    Normalizes input audio to 16kHz mono WAV before passing to ASR model.
+    Authoritative frontend target_lang is strictly respected.
     
     Args:
         audio_bytes: Raw bytes of the recorded audio file.
         filename: Original filename or hint for format extension.
         content_type: MIME type of the uploaded audio file.
-        target_lang: Optional target language code hint (en, hi, te, kn).
+        target_lang: Authoritative target language code (en, hi, te, kn).
         
     Returns:
         dict: {
@@ -177,56 +252,72 @@ def transcribe_audio_bytes(
         tmp.write(audio_bytes)
         tmp_path = tmp.name
 
+    norm_wav_path = None
+    t_start = time.time()
+
     try:
-        import whisper
-        model = get_whisper_model("base")
+        # ── Audio Normalization (Mono 16 kHz WAV) ─────────────────────────────────
+        norm_wav_path = normalize_audio_to_wav16k(tmp_path)
 
-        # ── Stage 1: Target Language Enforcement (Force User Selection) ────────────
-        raw_lang = "en"
-        detected_prob = 1.0
-
+        # ── Authoritative Target Language Selection ───────────────────────────────
+        norm_lang = "en"
         if target_lang:
             hint_clean = LANG_CODE_MAP.get(target_lang.lower().strip(), target_lang.lower().strip())
             if hint_clean in SUPPORTED_VOICE_LANGUAGES:
                 norm_lang = hint_clean
-                raw_lang = norm_lang
-                logger.info(f"Forcing user-selected STT language: '{norm_lang}'")
-            else:
-                norm_lang = "en"
+                logger.info(f"Authoritative user-selected STT language: '{norm_lang}'")
         else:
             try:
-                audio = whisper.load_audio(tmp_path)
+                import whisper
+                model = get_whisper_model("base")
+                audio = whisper.load_audio(norm_wav_path)
                 if len(audio) > 0:
                     audio_padded = whisper.pad_or_trim(audio)
                     mel = whisper.log_mel_spectrogram(audio_padded).to(model.device)
                     _, probs = model.detect_language(mel)
                     top_lang = max(probs, key=probs.get)
                     raw_lang = str(top_lang).lower().strip()
-                    detected_prob = float(probs[top_lang])
-                    logger.info(f"Whisper Audio Language Detection: raw_lang='{raw_lang}', prob={detected_prob:.4f}")
+                    norm_lang = LANG_CODE_MAP.get(raw_lang, raw_lang)
+                    if norm_lang not in SUPPORTED_VOICE_LANGUAGES:
+                        norm_lang = "en"
             except Exception as det_err:
-                logger.warning(f"Whisper detect_language fallback error: {det_err}")
-
-            norm_lang = LANG_CODE_MAP.get(raw_lang, raw_lang)
-            if norm_lang not in SUPPORTED_VOICE_LANGUAGES:
-                logger.warning(f"Unsupported language '{norm_lang}', defaulting to 'en'")
+                logger.warning(f"Language detection fallback error: {det_err}")
                 norm_lang = "en"
 
-        # ── Stage 2: Targeted STT Transcription with Explicit Language Enforcement ─
-        stt_result = model.transcribe(
-            tmp_path,
-            fp16=False,
-            task="transcribe",                  # Native speech-to-text ONLY
-            language=norm_lang,                 # Explicitly enforce target language & script!
-            temperature=0.0,                    # Greedy deterministic decoding
-            condition_on_previous_text=False,
-            no_speech_threshold=0.6,
-            logprob_threshold=-1.0,
-            compression_ratio_threshold=2.4
-        )
+        # ── Language Router STT Execution ──────────────────────────────────────────
+        asr_engine = "Whisper Base"
+        if norm_lang in {"te", "kn"}:
+            model_name = "vasista22/whisper-telugu-base" if norm_lang == "te" else "vasista22/whisper-kannada-base"
+            asr_engine = f"IndicConformer / Fine-tuned ASR ({model_name})"
+            logger.info(f"Routing STT to Indic ASR pipeline: lang={norm_lang}, model={model_name}")
+            
+            pipe = get_indic_asr_pipeline(norm_lang)
+            pipe_res = pipe(norm_wav_path)
+            raw_text = pipe_res.get("text", "").strip() if isinstance(pipe_res, dict) else str(pipe_res).strip()
+        else:
+            asr_engine = "Whisper Base"
+            logger.info(f"Routing STT to Whisper Base: lang={norm_lang}")
+            model = get_whisper_model("base")
+            stt_kwargs = {
+                "fp16": False,
+                "task": "transcribe",
+                "language": norm_lang,
+                "temperature": 0.0,
+                "condition_on_previous_text": False,
+                "no_speech_threshold": 0.6,
+                "logprob_threshold": -1.0,
+                "compression_ratio_threshold": 2.4
+            }
+            if norm_lang == "hi":
+                stt_kwargs["initial_prompt"] = "आयुर्वेदिक दवा बनाने के लिए क्या लाइसेंस और नियम चाहिए?"
 
-        raw_text = stt_result.get("text", "").strip()
-        logger.info(f"Whisper STT decoded (lang={norm_lang}): '{raw_text}'")
+            stt_result = model.transcribe(
+                norm_wav_path,
+                **stt_kwargs
+            )
+            raw_text = stt_result.get("text", "").strip()
+
+        logger.info(f"STT decoded (engine={asr_engine}, lang={norm_lang}): '{raw_text}'")
 
         # Reject empty or no-speech audio
         if not raw_text:
@@ -237,9 +328,9 @@ def transcribe_audio_bytes(
                 "error": "No speech detected in audio. Please try speaking clearly."
             }
 
-        # ── Stage 3: Script Consistency Validation ─────────────────────────────────
+        # ── Script Consistency Validation ─────────────────────────────────────────
         if not validate_script_consistency(raw_text, norm_lang):
-            logger.error(f"Script Mismatch / Hallucination Rejected: lang={norm_lang} cannot produce script of '{raw_text}'")
+            logger.error(f"Script Mismatch Rejected: lang={norm_lang} cannot produce script of '{raw_text}'")
             lang_names = {"en": "English", "hi": "Hindi", "te": "Telugu", "kn": "Kannada"}
             l_name = lang_names.get(norm_lang, norm_lang)
             return {
@@ -249,19 +340,19 @@ def transcribe_audio_bytes(
                 "error": f"Speech detected, but {l_name} transcription could not be completed (script mismatch). Please try speaking clearly."
             }
 
-        # ── Stage 4: English vs Multilingual Semantic Translation ──────────────────
+        # ── English vs Multilingual Semantic Translation ──────────────────────────
         if norm_lang == "en":
-            # Print Verbose Diagnostic Log to Terminal for English
+            elapsed_time = time.time() - t_start
             print("\n" + "=" * 50, flush=True)
             print("=== VOICE DEBUG ===", flush=True)
-            print(f"MIME: {mime}", flush=True)
-            print(f"Size: {len(audio_bytes)} bytes", flush=True)
-            print(f"Temp Audio Path: {tmp_path}", flush=True)
-            print(f"\nWhisper detected:\n{raw_lang}\nprobability:\n{detected_prob:.2f}", flush=True)
-            print(f"\nTranscription:\nlanguage={norm_lang}\ntask=transcribe", flush=True)
-            print(f"\nRAW TRANSCRIPT:\n{raw_text}", flush=True)
-            print(f"\nTRANSLATION INPUT:\n{raw_text}", flush=True)
-            print(f"\nTRANSLATION OUTPUT:\n{raw_text}", flush=True)
+            print(f"Selected language: {target_lang or 'auto'}", flush=True)
+            print(f"ASR Engine: {asr_engine}", flush=True)
+            print(f"Audio MIME: {mime}", flush=True)
+            print(f"Audio size: {len(audio_bytes)} bytes", flush=True)
+            print(f"Inference Time: {elapsed_time:.2f}s", flush=True)
+            print(f"RAW TRANSCRIPT:\n{raw_text}", flush=True)
+            print(f"TRANSLATION INPUT:\n{raw_text}", flush=True)
+            print(f"TRANSLATION OUTPUT:\n{raw_text}", flush=True)
             print("=" * 50 + "\n", flush=True)
 
             return {
@@ -282,11 +373,12 @@ def transcribe_audio_bytes(
         except Exception as qt_err:
             logger.warning(f"QueryTranslator error: {qt_err}")
 
-        # Secondary translation route: Whisper built-in translate task
+        # Secondary translation fallback via Whisper translate task
         if not translated_text or is_romanized_gibberish(translated_text, norm_lang):
             try:
+                model = get_whisper_model("base")
                 whisper_trans = model.transcribe(
-                    tmp_path,
+                    norm_wav_path,
                     fp16=False,
                     task="translate",
                     language=norm_lang,
@@ -300,16 +392,17 @@ def transcribe_audio_bytes(
             except Exception as w_err:
                 logger.warning(f"Whisper translate task error: {w_err}")
 
+        elapsed_time = time.time() - t_start
+
         # Print Verbose Diagnostic Log to Terminal
         print("\n" + "=" * 50, flush=True)
         print("=== VOICE DEBUG ===", flush=True)
         print(f"Selected language: {target_lang or 'auto'}", flush=True)
+        print(f"ASR Engine: {asr_engine}", flush=True)
         print(f"Backend language: {norm_lang}", flush=True)
         print(f"Audio MIME: {mime}", flush=True)
         print(f"Audio size: {len(audio_bytes)} bytes", flush=True)
-        print(f"Temp Audio Path: {tmp_path}", flush=True)
-        print(f"Whisper language: {norm_lang}", flush=True)
-        print(f"Whisper task: transcribe", flush=True)
+        print(f"Inference Time: {elapsed_time:.2f}s", flush=True)
         print(f"RAW TRANSCRIPT:\n{raw_text}", flush=True)
         print(f"TRANSLATION INPUT:\n{raw_text}", flush=True)
         print(f"TRANSLATION OUTPUT:\n{translated_text}", flush=True)
@@ -340,9 +433,14 @@ def transcribe_audio_bytes(
             "error": f"Voice processing failed: {str(e)}"
         }
     finally:
-        # Immediate cleanup of temporary audio file
+        # Immediate cleanup of temporary audio files
         if os.path.exists(tmp_path):
             try:
                 os.remove(tmp_path)
+            except Exception:
+                pass
+        if norm_wav_path and norm_wav_path != tmp_path and os.path.exists(norm_wav_path):
+            try:
+                os.remove(norm_wav_path)
             except Exception:
                 pass
