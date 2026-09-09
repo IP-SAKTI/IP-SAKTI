@@ -61,23 +61,30 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       const savedProfile = localStorage.getItem('ipsakti_user_profile');
 
       if (savedSession) {
-        setUser(JSON.parse(savedSession));
+        const parsedSession = JSON.parse(savedSession);
+        if (parsedSession && parsedSession.email) {
+          setUser(parsedSession);
+        } else {
+          setUser(null);
+        }
       } else {
-        // Initial session fallback for active state
-        setUser(DEFAULT_SESSION);
-        localStorage.setItem('ipsakti_auth_session', JSON.stringify(DEFAULT_SESSION));
+        setUser(null);
       }
 
       if (savedProfile) {
-        setProfile(JSON.parse(savedProfile));
+        const parsedProfile = JSON.parse(savedProfile);
+        if (parsedProfile && parsedProfile.email) {
+          setProfile(parsedProfile);
+        } else {
+          setProfile(null);
+        }
       } else {
-        setProfile(DEFAULT_PROFILE);
-        localStorage.setItem('ipsakti_user_profile', JSON.stringify(DEFAULT_PROFILE));
+        setProfile(null);
       }
     } catch (err) {
       console.warn('Error reading authentication state from local storage:', err);
-      setUser(DEFAULT_SESSION);
-      setProfile(DEFAULT_PROFILE);
+      setUser(null);
+      setProfile(null);
     } finally {
       setIsLoading(false);
     }
@@ -87,23 +94,24 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   const login = async (emailInput: string, passwordInput?: string): Promise<boolean> => {
     setIsLoading(true);
+    const cleanEmail = emailInput.trim().toLowerCase();
     try {
       const res = await fetch(`${API_BASE}/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: emailInput, password: passwordInput || 'password' }),
+        body: JSON.stringify({ email: cleanEmail, password: passwordInput || '' }),
       });
 
       if (res.ok) {
         const data = await res.json();
         const sessionData: UserSession = {
           id: data.user.id,
-          email: data.user.email,
+          email: data.user.email || cleanEmail,
         };
 
         const profileData: UserProfile = {
-          fullName: data.user.name || emailInput.split('@')[0],
-          email: data.user.email,
+          fullName: data.user.name || cleanEmail.split('@')[0],
+          email: data.user.email || cleanEmail,
           organization: 'IP-SAKTI',
           role: 'Researcher',
           bio: '',
@@ -114,7 +122,9 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         setProfile(profileData);
         localStorage.setItem('ipsakti_auth_session', JSON.stringify(sessionData));
         localStorage.setItem('ipsakti_user_profile', JSON.stringify(profileData));
-        localStorage.setItem('ipsakti_auth_token', data.token);
+        if (data.token) {
+          localStorage.setItem('ipsakti_auth_token', data.token);
+        }
         setIsLoading(false);
         return true;
       }
@@ -122,30 +132,20 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       console.warn('FastAPI auth login failed, falling back to client session:', err);
     }
 
-    // Local fallback
+    // Local fallback for offline/test mode
     const sessionData: UserSession = {
       id: `usr-${Date.now()}`,
-      email: emailInput,
+      email: cleanEmail,
     };
 
-    let profileData: UserProfile = {
-      fullName: emailInput.split('@')[0],
-      email: emailInput,
+    const profileData: UserProfile = {
+      fullName: cleanEmail.split('@')[0],
+      email: cleanEmail,
       organization: 'IP-SAKTI',
       role: 'Researcher',
       bio: '',
       avatarUrl: '',
     };
-
-    const existingProfile = localStorage.getItem('ipsakti_user_profile');
-    if (existingProfile) {
-      try {
-        const parsed = JSON.parse(existingProfile);
-        if (parsed.email === emailInput) {
-          profileData = parsed;
-        }
-      } catch (e) {}
-    }
 
     setUser(sessionData);
     setProfile(profileData);
@@ -157,13 +157,15 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   const register = async (fullNameInput: string, emailInput: string, passwordInput?: string): Promise<boolean> => {
     setIsLoading(true);
+    const cleanEmail = emailInput.trim().toLowerCase();
+    const cleanName = fullNameInput.trim();
     try {
       const res = await fetch(`${API_BASE}/auth/register`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          name: fullNameInput,
-          email: emailInput,
+          name: cleanName,
+          email: cleanEmail,
           password: passwordInput || 'password',
           confirm_password: passwordInput || 'password',
           terms_accepted: true,
@@ -174,12 +176,12 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         const data = await res.json();
         const sessionData: UserSession = {
           id: data.user.id,
-          email: data.user.email,
+          email: data.user.email || cleanEmail,
         };
 
         const profileData: UserProfile = {
-          fullName: data.user.name || fullNameInput,
-          email: data.user.email,
+          fullName: data.user.name || cleanName,
+          email: data.user.email || cleanEmail,
           organization: 'IP-SAKTI',
           role: 'Researcher',
           bio: '',
@@ -190,7 +192,9 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         setProfile(profileData);
         localStorage.setItem('ipsakti_auth_session', JSON.stringify(sessionData));
         localStorage.setItem('ipsakti_user_profile', JSON.stringify(profileData));
-        localStorage.setItem('ipsakti_auth_token', data.token);
+        if (data.token) {
+          localStorage.setItem('ipsakti_auth_token', data.token);
+        }
         setIsLoading(false);
         return true;
       }
@@ -201,12 +205,12 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     // Local fallback
     const sessionData: UserSession = {
       id: `usr-${Date.now()}`,
-      email: emailInput,
+      email: cleanEmail,
     };
 
     const profileData: UserProfile = {
-      fullName: fullNameInput,
-      email: emailInput,
+      fullName: cleanName,
+      email: cleanEmail,
       organization: 'IP-SAKTI',
       role: 'Researcher',
       bio: '',
@@ -242,8 +246,15 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const logout = () => {
     setUser(null);
     setProfile(null);
-    localStorage.removeItem('ipsakti_auth_session');
-    localStorage.removeItem('ipsakti_user_profile');
+    try {
+      localStorage.removeItem('ipsakti_auth_session');
+      localStorage.removeItem('ipsakti_user_profile');
+      localStorage.removeItem('ipsakti_auth_token');
+      localStorage.removeItem('ipsakti_active_conversation_id');
+      sessionStorage.clear();
+    } catch (err) {
+      console.warn('Logout storage cleanup error:', err);
+    }
     if (typeof window !== 'undefined') {
       window.location.href = '/login';
     }

@@ -1,13 +1,35 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { ArrowLeft, GitCompare, FileText, Download, Share2, Filter, Search } from 'lucide-react';
 import HeaderUserProfile from '@/components/HeaderUserProfile';
+import { useAuth } from '@/context/AuthContext';
 
 export default function ComparePage() {
+  const router = useRouter();
+  const { user, isLoading: authLoading } = useAuth();
   const [selectedJurisdictions, setSelectedJurisdictions] = useState(['India', 'Europe', 'USA']);
   const [filterQuery, setFilterQuery] = useState('');
+
+  useEffect(() => {
+    if (!authLoading && !user) {
+      router.push('/login');
+    }
+  }, [user, authLoading, router]);
+
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-[#001D14] flex items-center justify-center text-white text-sm font-sans-body">
+        Loading IP-SAKTI...
+      </div>
+    );
+  }
+
+  if (!user) {
+    return null;
+  }
 
   const matrix = [
     {

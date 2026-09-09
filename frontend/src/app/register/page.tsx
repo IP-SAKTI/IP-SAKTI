@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { User, Mail } from 'lucide-react';
@@ -13,7 +13,7 @@ import { useAuth } from '@/context/AuthContext';
 
 export default function RegisterPage() {
   const router = useRouter();
-  const { register } = useAuth();
+  const { user, isLoading: authLoading, register } = useAuth();
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -27,6 +27,27 @@ export default function RegisterPage() {
   const [termsError, setTermsError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [formError, setFormError] = useState('');
+
+  // If user is already authenticated, redirect to /
+  useEffect(() => {
+    if (!authLoading && user) {
+      router.push('/');
+    }
+  }, [user, authLoading, router]);
+
+  // Reset form state on mount
+  useEffect(() => {
+    setFullName('');
+    setEmail('');
+    setPassword('');
+    setConfirmPassword('');
+    setNameError('');
+    setEmailError('');
+    setPasswordError('');
+    setConfirmError('');
+    setTermsError('');
+    setFormError('');
+  }, []);
 
   const validate = () => {
     let valid = true;

@@ -8,12 +8,21 @@ import HeaderUserProfile from '@/components/HeaderUserProfile';
 import BotanicalBackground from '@/components/BotanicalBackground';
 import { Conversation, listConversations } from '@/lib/api';
 
+import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 
 export default function SettingsPage() {
-  const { user, profile: authProfile, updateProfile } = useAuth();
+  const router = useRouter();
+  const { user, profile: authProfile, isLoading: authLoading, updateProfile } = useAuth();
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
+
+  // Route protection
+  useEffect(() => {
+    if (!authLoading && !user) {
+      router.push('/login');
+    }
+  }, [user, authLoading, router]);
 
   // Profile Form States
   const [fullName, setFullName] = useState(authProfile?.fullName || 'User');
@@ -103,6 +112,18 @@ export default function SettingsPage() {
   };
 
   const avatarInitial = fullName.trim() ? fullName.trim().charAt(0).toUpperCase() : 'M';
+
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-[#001D14] flex items-center justify-center text-white text-sm font-sans-body">
+        Loading IP-SAKTI...
+      </div>
+    );
+  }
+
+  if (!user) {
+    return null;
+  }
 
   return (
     <div className="min-h-screen w-full bg-[#EEF3E4] font-sans-body relative flex">

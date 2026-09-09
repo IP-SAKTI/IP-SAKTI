@@ -6,11 +6,33 @@ import { ArrowLeft, FileText, Download, Share2, ShieldCheck, Leaf } from 'lucide
 import BotanicalBackground from '@/components/BotanicalBackground';
 import HeaderUserProfile from '@/components/HeaderUserProfile';
 
+import { useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 
 export default function BriefPage() {
-  const { user, profile } = useAuth();
-  const displayEmail = profile?.email || user?.email || 'user@ipsakti.gov.in';
+  const router = useRouter();
+  const { user, profile, isLoading: authLoading } = useAuth();
+
+  useEffect(() => {
+    if (!authLoading && !user) {
+      router.push('/login');
+    }
+  }, [user, authLoading, router]);
+
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-[#001D14] flex items-center justify-center text-white text-sm font-sans-body">
+        Loading IP-SAKTI...
+      </div>
+    );
+  }
+
+  if (!user) {
+    return null;
+  }
+
+  const displayEmail = profile?.email || user?.email || '';
   return (
     <div className="min-h-screen w-full bg-[#EEF3E4] font-sans-body relative flex flex-col p-6 lg:p-12">
       <BotanicalBackground />

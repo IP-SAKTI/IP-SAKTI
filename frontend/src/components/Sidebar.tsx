@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { Conversation } from '@/lib/api';
 import IpSaktiLogo from '@/components/IpSaktiLogo';
+import { useAuth } from '@/context/AuthContext';
 
 interface SidebarProps {
   conversations: Conversation[];
@@ -37,7 +38,16 @@ export default function Sidebar({
   onLogout,
 }: SidebarProps) {
   const pathname = usePathname();
+  const { logout: authLogout } = useAuth();
   const [searchQuery, setSearchQuery] = useState('');
+
+  const handleLogoutClick = () => {
+    if (onLogout) {
+      onLogout();
+    } else {
+      authLogout();
+    }
+  };
 
   const filteredConversations = conversations.filter((c) =>
     c.title.toLowerCase().includes(searchQuery.toLowerCase())
@@ -191,7 +201,7 @@ export default function Sidebar({
           </Link>
 
           <button
-            onClick={onLogout || (() => (window.location.href = '/login'))}
+            onClick={handleLogoutClick}
             className="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-xs font-medium text-[#CBE0D6] hover:bg-[#044D34]/50 hover:text-white transition-colors cursor-pointer text-left"
           >
             <LogOut className="w-4 h-4 text-amber-500" />

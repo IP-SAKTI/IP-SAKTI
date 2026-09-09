@@ -19,6 +19,8 @@ import {
   Conversation,
 } from '@/lib/api';
 
+import { useRouter } from 'next/navigation';
+
 const DEFAULT_STAGES: Stage[] = [
   { id: '1', label: 'Intent Classification', status: 'pending' },
   { id: '2', label: 'Jurisdiction Analysis', status: 'pending' },
@@ -30,7 +32,8 @@ const DEFAULT_STAGES: Stage[] = [
 ];
 
 export default function DashboardPage() {
-  const { user } = useAuth();
+  const router = useRouter();
+  const { user, isLoading: authLoading, logout } = useAuth();
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
   const [currentQuery, setCurrentQuery] = useState<string>('');
@@ -38,8 +41,16 @@ export default function DashboardPage() {
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [stages, setStages] = useState<Stage[]>(DEFAULT_STAGES);
 
+  // Route protection
+  useEffect(() => {
+    if (!authLoading && !user) {
+      router.push('/login');
+    }
+  }, [user, authLoading, router]);
+
   // Load conversations scoped to user and restore active workspace on page load/refresh
   useEffect(() => {
+    if (!user) return;
     async function loadDataAndRestore() {
       try {
         const fetched = await listConversations(user?.id);
@@ -201,6 +212,18 @@ export default function DashboardPage() {
     }
   };
 
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-[#001D14] flex items-center justify-center text-white text-sm font-sans-body">
+        Loading IP-SAKTI...
+      </div>
+    );
+  }
+
+  if (!user) {
+    return null;
+  }
+
   return (
     <div className="min-h-screen w-full bg-[#EEF3E4] font-sans-body relative flex">
       {/* Fixed Sidebar */}
@@ -210,8 +233,8 @@ export default function DashboardPage() {
         onSelectConversation={handleSelectConversation}
         onNewChat={handleNewChat}
         onDeleteConversation={handleDeleteConversation}
-        onOpenSettings={() => alert('Settings menu')}
-        onLogout={() => (window.location.href = '/login')}
+        onOpenSettings={() => (window.location.href = '/settings')}
+        onLogout={logout}
       />
 
       {/* Main Content Area */}

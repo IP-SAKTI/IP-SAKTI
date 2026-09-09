@@ -1,13 +1,35 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { ArrowLeft, Search, FileText, Database, Filter, ExternalLink, ShieldCheck } from 'lucide-react';
 import HeaderUserProfile from '@/components/HeaderUserProfile';
+import { useAuth } from '@/context/AuthContext';
 
 export default function KnowledgePage() {
+  const router = useRouter();
+  const { user, isLoading: authLoading } = useAuth();
   const [filter, setFilter] = useState('');
   const [activeCategory, setActiveCategory] = useState('All');
+
+  useEffect(() => {
+    if (!authLoading && !user) {
+      router.push('/login');
+    }
+  }, [user, authLoading, router]);
+
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-[#001D14] flex items-center justify-center text-white text-sm font-sans-body">
+        Loading IP-SAKTI...
+      </div>
+    );
+  }
+
+  if (!user) {
+    return null;
+  }
 
   const categories = ['All', 'IP & Patent', 'Traditional Knowledge', 'AYUSH Regulatory', 'ABS & Biodiversity'];
 

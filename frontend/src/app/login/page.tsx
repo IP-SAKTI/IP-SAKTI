@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Mail } from 'lucide-react';
@@ -13,7 +13,7 @@ import { useAuth } from '@/context/AuthContext';
 
 export default function LoginPage() {
   const router = useRouter();
-  const { login } = useAuth();
+  const { user, isLoading: authLoading, login } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [rememberMe, setRememberMe] = useState(true);
@@ -21,6 +21,22 @@ export default function LoginPage() {
   const [passwordError, setPasswordError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [formError, setFormError] = useState('');
+
+  // If user is already authenticated, redirect to /
+  useEffect(() => {
+    if (!authLoading && user) {
+      router.push('/');
+    }
+  }, [user, authLoading, router]);
+
+  // Explicitly reset form states on mount / unmount
+  useEffect(() => {
+    setEmail('');
+    setPassword('');
+    setEmailError('');
+    setPasswordError('');
+    setFormError('');
+  }, []);
 
   const validate = () => {
     let valid = true;
@@ -55,6 +71,8 @@ export default function LoginPage() {
     try {
       const success = await login(email.trim(), password);
       if (success) {
+        setEmail('');
+        setPassword('');
         router.push('/');
       } else {
         setFormError('Invalid email or password credentials. Please try again.');
@@ -89,6 +107,8 @@ export default function LoginPage() {
         <AuthInput
           label="Your Email"
           type="email"
+          name="email"
+          autoComplete="email"
           required
           value={email}
           onChange={(e) => {
@@ -103,6 +123,8 @@ export default function LoginPage() {
         {/* Password Field */}
         <PasswordInput
           label="Your Password"
+          name="password"
+          autoComplete="current-password"
           required
           value={password}
           onChange={(e) => {
