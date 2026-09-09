@@ -20,6 +20,7 @@ export interface APIQueryResponse {
   answer: string;
   is_abstention: boolean;
   confidence: number;
+  cosine_similarity?: number;
   evidence: EvidenceItem[];
   citations: Array<string | Record<string, any>>;
   agents_invoked: Array<string | Record<string, any>>;

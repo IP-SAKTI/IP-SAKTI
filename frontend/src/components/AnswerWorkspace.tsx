@@ -29,26 +29,19 @@ export default function AnswerWorkspace({
   response,
   onSaveResearch,
 }: AnswerWorkspaceProps) {
-  // Safely extract numeric confidence value
-  let rawConfidenceNum: number | null = null;
-  if (typeof response.confidence === 'number' && !isNaN(response.confidence)) {
-    rawConfidenceNum = response.confidence;
-  } else if (typeof response.confidence === 'object' && response.confidence !== null) {
-    const scoreVal = (response.confidence as any).score;
-    if (typeof scoreVal === 'number' && !isNaN(scoreVal)) {
-      rawConfidenceNum = scoreVal;
+  // Safely extract Cosine Similarity score from backend vector retrieval
+  let rawCosineSim: number | null = null;
+  if (typeof response.cosine_similarity === 'number' && !isNaN(response.cosine_similarity)) {
+    rawCosineSim = response.cosine_similarity;
+  } else if (Array.isArray(response.evidence) && response.evidence.length > 0) {
+    const topFaissScore = (response.evidence[0] as any)?.faiss_score;
+    if (typeof topFaissScore === 'number' && !isNaN(topFaissScore)) {
+      rawCosineSim = topFaissScore;
     }
   }
 
-  const hasValidConfidence = rawConfidenceNum !== null;
-  const confidencePct = hasValidConfidence ? (rawConfidenceNum! * 100).toFixed(2) : '0';
-  const confidenceLabel = hasValidConfidence
-    ? rawConfidenceNum! >= 0.70
-      ? 'High'
-      : rawConfidenceNum! >= 0.40
-      ? 'Moderate'
-      : 'Low'
-    : 'Unavailable';
+  const hasValidCosineSim = rawCosineSim !== null;
+  const cosineSimVal = hasValidCosineSim ? rawCosineSim!.toFixed(4) : 'N/A';
 
   // Extract key findings bullet points from answer if available
   const keyFindings = response.answer
@@ -92,16 +85,16 @@ export default function AnswerWorkspace({
               );
             })}
 
-            {/* Confidence Score */}
-            {hasValidConfidence ? (
+            {/* Cosine Similarity Score */}
+            {hasValidCosineSim ? (
               <div className="flex items-center gap-1.5 bg-[#003E29] text-white text-xs font-semibold px-3 py-1 rounded-md shadow-xs">
                 <ShieldCheck className="w-3.5 h-3.5 text-emerald-300" />
-                <span>Confidence: {confidencePct}% ({confidenceLabel})</span>
+                <span>Cosine Similarity: {cosineSimVal}</span>
               </div>
             ) : (
               <div className="flex items-center gap-1.5 bg-gray-100 text-gray-700 text-xs font-medium px-2.5 py-1 rounded-md">
                 <Info className="w-3.5 h-3.5" />
-                <span>Confidence: Unavailable</span>
+                <span>Cosine Similarity: N/A</span>
               </div>
             )}
           </div>

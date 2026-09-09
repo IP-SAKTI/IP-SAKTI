@@ -28,7 +28,7 @@ const DEFAULT_STAGES: Stage[] = [
   { id: '4', label: 'RRF Reranking', status: 'pending' },
   { id: '5', label: 'Specialist Agent Synthesis', status: 'pending' },
   { id: '6', label: 'Citation Validation', status: 'pending' },
-  { id: '7', label: 'Confidence Scoring', status: 'pending' },
+  { id: '7', label: 'Cosine Similarity Verification', status: 'pending' },
 ];
 
 export default function DashboardPage() {

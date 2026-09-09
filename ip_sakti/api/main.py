@@ -9,7 +9,7 @@ import logging
 from contextlib import asynccontextmanager
 from typing import AsyncGenerator, Optional
 
-from fastapi import FastAPI, HTTPException, Query, Response, status
+from fastapi import FastAPI, HTTPException, Header, Query, Response, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse
 
@@ -170,11 +170,19 @@ async def process_query(payload: APIQueryRequest) -> APIQueryResponse:
         elif isinstance(final_resp.confidence, dict) and "score" in final_resp.confidence:
             conf_score = float(final_resp.confidence["score"])
 
+        # Extract actual vector cosine similarity score from FAISS retrieval evidence
+        cosine_sim = None
+        if final_resp.evidence:
+            faiss_scores = [ev.faiss_score for ev in final_resp.evidence if ev.faiss_score is not None]
+            if faiss_scores:
+                cosine_sim = float(max(faiss_scores))
+
         return APIQueryResponse(
             query_id=final_resp.query_id,
             answer=final_resp.answer,
             is_abstention=final_resp.is_abstention,
             confidence=conf_score,
+            cosine_similarity=cosine_sim,
             evidence=final_resp.evidence,
             citations=final_resp.citations,
             agents_invoked=agents_str,
@@ -223,6 +231,31 @@ async def login(payload: LoginRequest) -> AuthResponse:
 
     token = user_data.get("access_token") or f"token-{user_data['id']}"
     return AuthResponse(user=user_data, token=token, message="Login successful.")
+
+
+@app.get("/auth/verify", response_model=AuthResponse, tags=["Authentication"])
+async def verify_token(authorization: Optional[str] = Header(default=None)) -> AuthResponse:
+    """Verify Supabase Auth session token."""
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="No token provided")
+
+    token = authorization.split("Bearer ")[1].strip()
+    auth_srv = get_auth_service()
+    user_data = auth_srv.verify_session(token)
+    if not user_data:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or expired session token")
+
+    return AuthResponse(user=user_data, token=token, message="Session valid.")
+
+
+@app.post("/auth/logout", tags=["Authentication"])
+async def logout_user(authorization: Optional[str] = Header(default=None)):
+    """Sign out user session from Supabase Auth."""
+    if authorization and authorization.startswith("Bearer "):
+        token = authorization.split("Bearer ")[1].strip()
+        auth_srv = get_auth_service()
+        auth_srv.sign_out(token)
+    return {"message": "Logged out successfully."}
 
 
 # ---------------------------------------------------------------------------

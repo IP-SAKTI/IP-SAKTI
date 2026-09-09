@@ -67,6 +67,9 @@ class APIQueryResponse(BaseModel):
     confidence: Optional[float] = Field(
         default=None, description="Canonical confidence score between 0.0 and 1.0."
     )
+    cosine_similarity: Optional[float] = Field(
+        default=None, description="Actual cosine similarity score from FAISS dense vector search."
+    )
     evidence: list[EvidenceChunk] = Field(
         default_factory=list, description="Source-grounded evidence chunks."
     )

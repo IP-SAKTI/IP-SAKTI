@@ -26,20 +26,6 @@ interface AuthContextType {
   logout: () => void;
 }
 
-const DEFAULT_PROFILE: UserProfile = {
-  fullName: 'Manaswitha',
-  email: 'manaswitha@ipsakti.gov.in',
-  organization: 'IP-SAKTI',
-  role: 'Researcher',
-  bio: '',
-  avatarUrl: '',
-};
-
-const DEFAULT_SESSION: UserSession = {
-  id: 'usr-default-001',
-  email: 'manaswitha@ipsakti.gov.in',
-};
-
 const AuthContext = createContext<AuthContextType>({
   user: null,
   profile: null,
@@ -55,42 +41,70 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
 
-  useEffect(() => {
-    try {
-      const savedSession = localStorage.getItem('ipsakti_auth_session');
-      const savedProfile = localStorage.getItem('ipsakti_user_profile');
-
-      if (savedSession) {
-        const parsedSession = JSON.parse(savedSession);
-        if (parsedSession && parsedSession.email) {
-          setUser(parsedSession);
-        } else {
-          setUser(null);
-        }
-      } else {
-        setUser(null);
-      }
-
-      if (savedProfile) {
-        const parsedProfile = JSON.parse(savedProfile);
-        if (parsedProfile && parsedProfile.email) {
-          setProfile(parsedProfile);
-        } else {
-          setProfile(null);
-        }
-      } else {
-        setProfile(null);
-      }
-    } catch (err) {
-      console.warn('Error reading authentication state from local storage:', err);
-      setUser(null);
-      setProfile(null);
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
-
   const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+
+  useEffect(() => {
+    async function verifySession() {
+      try {
+        const token = localStorage.getItem('ipsakti_auth_token');
+        if (!token) {
+          setUser(null);
+          setProfile(null);
+          setIsLoading(false);
+          return;
+        }
+
+        const res = await fetch(`${API_BASE}/auth/verify`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+
+        if (res.ok) {
+          const data = await res.json();
+          if (data && data.user) {
+            const verifiedUser: UserSession = {
+              id: data.user.id,
+              email: data.user.email || 'user@ipsakti.gov.in',
+            };
+            const verifiedProfile: UserProfile = {
+              fullName: data.user.name || data.user.email?.split('@')[0] || 'Researcher',
+              email: data.user.email || 'user@ipsakti.gov.in',
+              organization: 'IP-SAKTI',
+              role: 'Researcher',
+              bio: '',
+              avatarUrl: '',
+            };
+            setUser(verifiedUser);
+            setProfile(verifiedProfile);
+            localStorage.setItem('ipsakti_auth_session', JSON.stringify(verifiedUser));
+            localStorage.setItem('ipsakti_user_profile', JSON.stringify(verifiedProfile));
+          } else {
+            throw new Error('Invalid user payload');
+          }
+        } else {
+          // Token expired or invalid
+          setUser(null);
+          setProfile(null);
+          localStorage.removeItem('ipsakti_auth_token');
+          localStorage.removeItem('ipsakti_auth_session');
+          localStorage.removeItem('ipsakti_user_profile');
+          localStorage.removeItem('ipsakti_active_conversation_id');
+        }
+      } catch (err) {
+        console.warn('Session verification failed:', err);
+        setUser(null);
+        setProfile(null);
+        localStorage.removeItem('ipsakti_auth_token');
+        localStorage.removeItem('ipsakti_auth_session');
+        localStorage.removeItem('ipsakti_user_profile');
+      } finally {
+        setIsLoading(false);
+      }
+    }
+
+    verifySession();
+  }, [API_BASE]);
 
   const login = async (emailInput: string, passwordInput?: string): Promise<boolean> => {
     setIsLoading(true);
@@ -243,10 +257,19 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     });
   };
 
-  const logout = () => {
+  const logout = async () => {
+    const token = typeof window !== 'undefined' ? localStorage.getItem('ipsakti_auth_token') : null;
     setUser(null);
     setProfile(null);
     try {
+      if (token) {
+        await fetch(`${API_BASE}/auth/logout`, {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }).catch((err) => console.warn('Logout API call failed:', err));
+      }
       localStorage.removeItem('ipsakti_auth_session');
       localStorage.removeItem('ipsakti_user_profile');
       localStorage.removeItem('ipsakti_auth_token');
