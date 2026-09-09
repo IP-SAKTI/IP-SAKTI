@@ -178,13 +178,17 @@ export default function Sidebar({
             <span>About IP-SAKTI</span>
           </Link>
 
-          <a
-            href="mailto:support@ipsakti.gov.in"
-            className="flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-xs font-medium text-[#CBE0D6] hover:bg-[#044D34]/50 hover:text-white transition-colors"
+          <Link
+            href="/contact"
+            className={`flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+              pathname === '/contact'
+                ? 'bg-[#0A5F42] text-white font-semibold border border-[#1E5C46]'
+                : 'text-[#CBE0D6] hover:bg-[#044D34]/50 hover:text-white'
+            }`}
           >
             <Mail className="w-4 h-4 text-[#A1C9B6]" />
             <span>Contact Support</span>
-          </a>
+          </Link>
 
           <button
             onClick={onLogout || (() => (window.location.href = '/login'))}
