@@ -21,9 +21,11 @@ export interface APIQueryResponse {
   is_abstention: boolean;
   confidence: number;
   evidence: EvidenceItem[];
-  citations: string[];
-  agents_invoked: string[];
+  citations: Array<string | Record<string, any>>;
+  agents_invoked: Array<string | Record<string, any>>;
   disclaimer: string;
+  search_mode?: string;
+  live_research_metadata?: any;
 }
 
 export interface APIQueryPayload {
@@ -50,7 +52,7 @@ export const MOCK_CONVERSATIONS: Conversation[] = [
   {
     id: 'conv-1',
     title: 'Is turmeric + neem patentable?',
-    created_at: new Date(Date.now() - 3600000).toISOString(),
+    created_at: '2026-09-08T18:00:00.000Z',
     query: 'Is turmeric + neem patentable in India?',
     response: {
       query_id: 'mock-1',
@@ -85,13 +87,13 @@ export const MOCK_CONVERSATIONS: Conversation[] = [
   {
     id: 'conv-2',
     title: 'AYUSH Rule 158-B Licensing',
-    created_at: new Date(Date.now() - 7200000).toISOString(),
+    created_at: '2026-09-08T17:00:00.000Z',
     query: 'AYUSH licensing steps under Rule 158-B',
   },
   {
     id: 'conv-3',
     title: 'ABS under Biodiversity Act',
-    created_at: new Date(Date.now() - 86400000).toISOString(),
+    created_at: '2026-09-07T18:00:00.000Z',
     query: 'ABS obligations under Biodiversity Act',
   },
 ];

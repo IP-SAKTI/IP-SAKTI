@@ -55,14 +55,23 @@ export default function AnswerWorkspace({
             </span>
 
             {/* Invoked Agents / Category */}
-            {response.agents_invoked?.map((agent, idx) => (
-              <span
-                key={idx}
-                className="bg-[#EEF3E4] text-[#003E29] text-[11px] font-semibold px-2.5 py-0.5 rounded border border-[#C8D7C2]"
-              >
-                {agent}
-              </span>
-            ))}
+            {response.agents_invoked?.map((agent, idx) => {
+              const agentLabel =
+                typeof agent === 'string'
+                  ? agent
+                  : typeof agent === 'object' && agent !== null
+                  ? (agent as any).name || (agent as any).value || String(agent)
+                  : String(agent);
+
+              return (
+                <span
+                  key={idx}
+                  className="bg-[#EEF3E4] text-[#003E29] text-[11px] font-semibold px-2.5 py-0.5 rounded border border-[#C8D7C2]"
+                >
+                  {agentLabel}
+                </span>
+              );
+            })}
 
             {/* Confidence Score */}
             {response.confidence !== undefined && response.confidence !== null ? (
@@ -143,7 +152,7 @@ export default function AnswerWorkspace({
 
       {/* 4. KEY FINDINGS */}
       {keyFindings.length > 0 && (
-        <div className="bg-white border border-[#C8D7C2] rounded-xl p-5 shadow-xs space-y-3">
+        <div className="bg-[#FFFFFF] border border-[#C8D7C2] rounded-xl p-5 shadow-xs space-y-3">
           <div className="flex items-center gap-2 font-serif-heading text-lg font-bold text-[#003E29]">
             <Sparkles className="w-4 h-4 text-[#003E29]" />
             <span>Key Findings</span>
@@ -225,11 +234,25 @@ export default function AnswerWorkspace({
             OFFICIAL CITATIONS & SOURCES
           </div>
           <div className="flex flex-wrap gap-2">
-            {response.citations.map((cite, i) => (
-              <span key={i} className="bg-[#EEF3E4] border border-[#C8D7C2] text-[#003E29] px-2.5 py-1 rounded text-[11px] font-medium">
-                {cite}
-              </span>
-            ))}
+            {response.citations.map((cite, i) => {
+              const label =
+                typeof cite === 'string'
+                  ? cite
+                  : typeof cite === 'object' && cite !== null
+                  ? (cite as any).source_label
+                    ? `${(cite as any).source_label}${(cite as any).claim_snippet ? `: ${(cite as any).claim_snippet}` : ''}`
+                    : (cite as any).claim_snippet || JSON.stringify(cite)
+                  : String(cite);
+
+              return (
+                <span
+                  key={i}
+                  className="bg-[#EEF3E4] border border-[#C8D7C2] text-[#003E29] px-2.5 py-1 rounded text-[11px] font-medium"
+                >
+                  {label}
+                </span>
+              );
+            })}
           </div>
         </div>
       )}
