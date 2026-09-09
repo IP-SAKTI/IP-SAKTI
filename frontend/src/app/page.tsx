@@ -8,12 +8,14 @@ import FeatureCards from '@/components/FeatureCards';
 import ChatInputBar from '@/components/ChatInputBar';
 import ResearchPipelineProgress, { Stage } from '@/components/ResearchPipelineProgress';
 import AnswerWorkspace from '@/components/AnswerWorkspace';
+import { useAuth } from '@/context/AuthContext';
 import {
   sendQueryToAPI,
   listConversations,
+  saveConversationToStorage,
+  deleteConversationFromStorage,
   APIQueryResponse,
   Conversation,
-  MOCK_CONVERSATIONS,
 } from '@/lib/api';
 
 const DEFAULT_STAGES: Stage[] = [
@@ -27,27 +29,26 @@ const DEFAULT_STAGES: Stage[] = [
 ];
 
 export default function DashboardPage() {
-  const [conversations, setConversations] = useState<Conversation[]>(MOCK_CONVERSATIONS);
+  const { user } = useAuth();
+  const [conversations, setConversations] = useState<Conversation[]>([]);
   const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
   const [currentQuery, setCurrentQuery] = useState<string>('');
   const [activeResponse, setActiveResponse] = useState<APIQueryResponse | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [stages, setStages] = useState<Stage[]>(DEFAULT_STAGES);
 
-  // Load conversations on mount
+  // Load conversations scoped to user
   useEffect(() => {
     async function loadData() {
       try {
-        const fetched = await listConversations();
-        if (fetched && fetched.length > 0) {
-          setConversations(fetched);
-        }
+        const fetched = await listConversations(user?.id);
+        setConversations(fetched || []);
       } catch (err) {
         console.warn('API backend conversation fetch fallback:', err);
       }
     }
     loadData();
-  }, []);
+  }, [user?.id]);
 
   const handleSendMessage = async (queryText: string) => {
     if (!queryText.trim() || isLoading) return;
@@ -100,6 +101,7 @@ export default function DashboardPage() {
 
       setConversations((prev) => [newConv, ...prev]);
       setActiveConversationId(newConv.id);
+      saveConversationToStorage(newConv, user?.id);
     } catch (err) {
       clearInterval(interval);
       console.error('Failed to process query:', err);
@@ -139,6 +141,7 @@ export default function DashboardPage() {
 
   const handleDeleteConversation = (id: string) => {
     setConversations((prev) => prev.filter((c) => c.id !== id));
+    deleteConversationFromStorage(id, user?.id);
     if (activeConversationId === id) {
       handleNewChat();
     }

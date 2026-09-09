@@ -6,13 +6,13 @@ import { User, Save, Camera, CheckCircle2, AlertCircle, Leaf, Globe, Bell } from
 import Sidebar from '@/components/Sidebar';
 import HeaderUserProfile from '@/components/HeaderUserProfile';
 import BotanicalBackground from '@/components/BotanicalBackground';
-import { Conversation, listConversations, MOCK_CONVERSATIONS } from '@/lib/api';
+import { Conversation, listConversations } from '@/lib/api';
 
 import { useAuth } from '@/context/AuthContext';
 
 export default function SettingsPage() {
   const { user, profile: authProfile, updateProfile } = useAuth();
-  const [conversations, setConversations] = useState<Conversation[]>(MOCK_CONVERSATIONS);
+  const [conversations, setConversations] = useState<Conversation[]>([]);
   const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
 
   // Profile Form States
@@ -44,16 +44,14 @@ export default function SettingsPage() {
   useEffect(() => {
     async function loadData() {
       try {
-        const fetched = await listConversations();
-        if (fetched && fetched.length > 0) {
-          setConversations(fetched);
-        }
+        const fetched = await listConversations(user?.id);
+        setConversations(fetched || []);
       } catch (err) {
         console.warn('API backend conversation fetch fallback:', err);
       }
     }
     loadData();
-  }, []);
+  }, [user?.id]);
 
   const handleSelectConversation = (id: string) => {
     window.location.href = `/?conv=${id}`;

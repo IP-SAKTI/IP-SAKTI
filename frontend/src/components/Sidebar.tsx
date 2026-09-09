@@ -123,20 +123,27 @@ export default function Sidebar({
                 );
               })
             ) : (
-              <div className="text-[11px] text-[#7B9F8E] p-2 text-center italic">
-                No research history
+              <div className="py-4 px-2 text-center space-y-1">
+                <div className="text-xs font-semibold text-[#A1C9B6]">
+                  No research history yet
+                </div>
+                <div className="text-[11px] text-[#7B9F8E] leading-tight">
+                  Your recent research queries will appear here.
+                </div>
               </div>
             )}
           </div>
 
-          <div className="text-right pt-0.5">
-            <button
-              onClick={() => {}}
-              className="text-[11px] text-[#A1C9B6] hover:underline font-medium hover:text-white transition-colors cursor-pointer"
-            >
-              View all →
-            </button>
-          </div>
+          {filteredConversations.length > 0 && (
+            <div className="text-right pt-0.5">
+              <button
+                onClick={() => {}}
+                className="text-[11px] text-[#A1C9B6] hover:underline font-medium hover:text-white transition-colors cursor-pointer"
+              >
+                View all →
+              </button>
+            </div>
+          )}
         </div>
       </div>
 
@@ -177,18 +184,6 @@ export default function Sidebar({
           >
             <Mail className="w-4 h-4 text-[#A1C9B6]" />
             <span>Contact Support</span>
-          </a>
-
-          <a
-            href="#"
-            onClick={(e) => {
-              e.preventDefault();
-              alert('Opening IP-SAKTI Sahayak Documentation...');
-            }}
-            className="flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-xs font-medium text-[#CBE0D6] hover:bg-[#044D34]/50 hover:text-white transition-colors"
-          >
-            <FileText className="w-4 h-4 text-[#A1C9B6]" />
-            <span>Documentation</span>
           </a>
 
           <button

@@ -23,25 +23,25 @@ import {
 import Sidebar from '@/components/Sidebar';
 import HeaderUserProfile from '@/components/HeaderUserProfile';
 import BotanicalBackground from '@/components/BotanicalBackground';
-import { Conversation, listConversations, MOCK_CONVERSATIONS } from '@/lib/api';
+import { useAuth } from '@/context/AuthContext';
+import { Conversation, listConversations } from '@/lib/api';
 
 export default function AboutPage() {
-  const [conversations, setConversations] = useState<Conversation[]>(MOCK_CONVERSATIONS);
+  const { user } = useAuth();
+  const [conversations, setConversations] = useState<Conversation[]>([]);
   const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
 
   useEffect(() => {
     async function loadData() {
       try {
-        const fetched = await listConversations();
-        if (fetched && fetched.length > 0) {
-          setConversations(fetched);
-        }
+        const fetched = await listConversations(user?.id);
+        setConversations(fetched || []);
       } catch (err) {
         console.warn('API backend conversation fetch fallback:', err);
       }
     }
     loadData();
-  }, []);
+  }, [user?.id]);
 
   const handleSelectConversation = (id: string) => {
     window.location.href = `/?conv=${id}`;

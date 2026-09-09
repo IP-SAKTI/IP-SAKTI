@@ -48,55 +48,48 @@ export interface Conversation {
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
-export const MOCK_CONVERSATIONS: Conversation[] = [
-  {
-    id: 'conv-1',
-    title: 'Is turmeric + neem patentable?',
-    created_at: '2026-09-08T18:00:00.000Z',
-    query: 'Is turmeric + neem patentable in India?',
-    response: {
-      query_id: 'mock-1',
-      answer: 'Under Section 3(p) of the Indian Patents Act, 1970, formulations combining Curcuma longa (Turmeric) and Azadirachta indica (Neem) are excluded from patentability as they constitute known Traditional Knowledge and an aggregation of known properties of traditionally known components.\n\nRevocation of US Patent 5,401,504 (CSIR Turmeric Case) established prior art precedent from ancient Ayurvedic texts including Charaka Samhita.',
-      is_abstention: false,
-      confidence: 0.94,
-      evidence: [
-        {
-          source_id: 'TKDL-AYU-0842',
-          doc_id: 'TKDL-AYU-0842',
-          title: 'Charaka Samhita — Chikitsa Sthana Formulation Records',
-          source_name: 'Traditional Knowledge Digital Library (TKDL)',
-          authority: 'AYUSH / CSIR',
-          content: 'Documented topical application of Haridra (Turmeric) and Nimbaka (Neem) for Vrana Ropana (wound healing) and Kustha (dermatological conditions).',
-          source_url: 'https://tkdl.res.in',
-        },
-        {
-          source_id: 'IPA-1970-SEC3P',
-          doc_id: 'IPA-1970-SEC3P',
-          title: 'Indian Patents Act 1970 — Section 3(p)',
-          source_name: 'Patents Act, 1970',
-          authority: 'Indian Patent Office',
-          content: 'An invention which in effect, is traditional knowledge or which is an aggregation or duplication of known properties of traditionally known component or components is not patentable.',
-          source_url: 'https://ipindia.gov.in',
-        },
-      ],
-      citations: ['Charaka Samhita Chikitsa Sthana Ch. 7', 'Patents Act 1970 Sec 3(p)'],
-      agents_invoked: ['IP Agent', 'TK-ABS Agent'],
-      disclaimer: 'This informational response is grounded in authoritative text archives and does not substitute for professional legal advice.',
-    },
-  },
-  {
-    id: 'conv-2',
-    title: 'AYUSH Rule 158-B Licensing',
-    created_at: '2026-09-08T17:00:00.000Z',
-    query: 'AYUSH licensing steps under Rule 158-B',
-  },
-  {
-    id: 'conv-3',
-    title: 'ABS under Biodiversity Act',
-    created_at: '2026-09-07T18:00:00.000Z',
-    query: 'ABS obligations under Biodiversity Act',
-  },
-];
+export const MOCK_CONVERSATIONS: Conversation[] = [];
+
+export async function listConversations(userId?: string): Promise<Conversation[]> {
+  if (typeof window !== 'undefined') {
+    try {
+      const storageKey = userId ? `ipsakti_user_history_${userId}` : 'ipsakti_user_history';
+      const stored = localStorage.getItem(storageKey);
+      if (stored) {
+        return JSON.parse(stored);
+      }
+    } catch (err) {
+      console.warn('Failed to read research history from local storage:', err);
+    }
+  }
+  return [];
+}
+
+export async function saveConversationToStorage(conv: Conversation, userId?: string): Promise<void> {
+  if (typeof window !== 'undefined') {
+    try {
+      const storageKey = userId ? `ipsakti_user_history_${userId}` : 'ipsakti_user_history';
+      const existing = await listConversations(userId);
+      const updated = [conv, ...existing.filter((c) => c.id !== conv.id)];
+      localStorage.setItem(storageKey, JSON.stringify(updated));
+    } catch (err) {
+      console.warn('Failed to save conversation to local storage:', err);
+    }
+  }
+}
+
+export async function deleteConversationFromStorage(id: string, userId?: string): Promise<void> {
+  if (typeof window !== 'undefined') {
+    try {
+      const storageKey = userId ? `ipsakti_user_history_${userId}` : 'ipsakti_user_history';
+      const existing = await listConversations(userId);
+      const updated = existing.filter((c) => c.id !== id);
+      localStorage.setItem(storageKey, JSON.stringify(updated));
+    } catch (err) {
+      console.warn('Failed to delete conversation from local storage:', err);
+    }
+  }
+}
 
 export async function processQueryAPI(payload: APIQueryPayload): Promise<APIQueryResponse> {
   try {
@@ -150,10 +143,6 @@ export async function processQueryAPI(payload: APIQueryPayload): Promise<APIQuer
 
 export async function sendQueryToAPI(rawQuery: string): Promise<APIQueryResponse> {
   return processQueryAPI({ raw_query: rawQuery });
-}
-
-export async function listConversations(): Promise<Conversation[]> {
-  return MOCK_CONVERSATIONS;
 }
 
 export async function checkHealthAPI(): Promise<boolean> {
