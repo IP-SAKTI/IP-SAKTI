@@ -1,8 +1,9 @@
 """
-Voice Input / Speech-to-Text Transcription Service for IP-SAKTI Sahayak
+Voice Input / Speech-to-Text & Multilingual Translation Service for IP-SAKTI Sahayak
 
 Uses pretrained Whisper (openai-whisper) with lightweight model ('tiny' or 'base')
-for low latency CPU transcription supporting English and Indian languages.
+for low latency CPU transcription supporting English and Indian languages (Hindi, Telugu, Kannada).
+Integrates with QueryTranslator for translating voice queries to English.
 """
 
 import os
@@ -33,6 +34,16 @@ except Exception as e:
     logger.warning(f"Could not load imageio-ffmpeg helper: {e}")
 
 _WHISPER_MODEL = None
+_QUERY_TRANSLATOR = None
+
+SUPPORTED_VOICE_LANGUAGES = {"en", "hi", "te", "kn"}
+
+LANG_CODE_MAP = {
+    "en": "en", "eng": "en", "english": "en",
+    "hi": "hi", "hin": "hi", "hindi": "hi",
+    "te": "te", "tel": "te", "telugu": "te",
+    "kn": "kn", "kan": "kn", "kannada": "kn",
+}
 
 
 def get_whisper_model(model_name: str = "tiny"):
@@ -49,21 +60,39 @@ def get_whisper_model(model_name: str = "tiny"):
     return _WHISPER_MODEL
 
 
+def get_query_translator():
+    """
+    Lazy-load and return cached singleton instance of QueryTranslator.
+    """
+    global _QUERY_TRANSLATOR
+    if _QUERY_TRANSLATOR is None:
+        from ip_sakti.multilingual.translator import QueryTranslator
+        _QUERY_TRANSLATOR = QueryTranslator()
+    return _QUERY_TRANSLATOR
+
+
 def transcribe_audio_bytes(audio_bytes: bytes, filename: str = "audio.webm") -> dict:
     """
-    Transcribe audio bytes using pretrained Whisper model.
+    Transcribe audio bytes using pretrained Whisper model and translate to English
+    if language is one of the supported Indian languages (hi, te, kn).
     
     Args:
         audio_bytes: Raw bytes of the recorded audio file.
         filename: Original filename or hint for format extension.
         
     Returns:
-        dict: {"transcript": str, "language": str, "error": str | None}
+        dict: {
+            "transcript": str,
+            "language": str,
+            "translated_text": str | None,
+            "error": str | None
+        }
     """
     if not audio_bytes or len(audio_bytes) < 100:
         return {
             "transcript": "",
             "language": "en",
+            "translated_text": None,
             "error": "Audio recording is empty or too short. Please speak again."
         }
 
@@ -80,23 +109,73 @@ def transcribe_audio_bytes(audio_bytes: bytes, filename: str = "audio.webm") -> 
         # Transcribe temporary audio file with CPU fallback (fp16=False)
         result = model.transcribe(tmp_path, fp16=False)
         text = result.get("text", "").strip()
-        language = result.get("language", "en")
+        raw_lang = (result.get("language") or "en").lower().strip()
+        
+        # Normalize language code
+        norm_lang = LANG_CODE_MAP.get(raw_lang, raw_lang)
 
-        logger.info(f"Transcribed audio ({len(audio_bytes)} bytes) -> '{text}' (lang={language})")
+        logger.info(f"Transcribed audio ({len(audio_bytes)} bytes) -> '{text}' (detected_lang={norm_lang})")
 
-        return {
-            "transcript": text,
-            "language": language,
-            "error": None if text else "No speech detected in audio. Please try speaking clearly."
-        }
+        if not text:
+            return {
+                "transcript": "",
+                "language": norm_lang,
+                "translated_text": None,
+                "error": "No speech detected in audio. Please try speaking clearly."
+            }
+
+        # Check if detected language is supported
+        if norm_lang not in SUPPORTED_VOICE_LANGUAGES:
+            logger.warning(f"Unsupported voice language detected: '{norm_lang}'")
+            return {
+                "transcript": text,
+                "language": norm_lang,
+                "translated_text": None,
+                "error": "Unsupported voice language"
+            }
+
+        # English voice query
+        if norm_lang == "en":
+            return {
+                "transcript": text,
+                "language": "en",
+                "translated_text": text,
+                "error": None
+            }
+
+        # Multilingual voice query (Hindi, Telugu, Kannada) -> translate to English
+        try:
+            translator = get_query_translator()
+            trans_result = translator.translate_to_retrieval_language(text, norm_lang)
+            translated = trans_result.translated_text.strip()
+            
+            logger.info(f"Translated [{norm_lang}] '{text}' -> [en] '{translated}'")
+            
+            return {
+                "transcript": text,
+                "language": norm_lang,
+                "translated_text": translated if translated else text,
+                "error": None
+            }
+        except Exception as trans_err:
+            logger.error(f"Translation failed for [{norm_lang}] text '{text}': {trans_err}", exc_info=True)
+            return {
+                "transcript": text,
+                "language": norm_lang,
+                "translated_text": None,
+                "error": f"Translation failed: {str(trans_err)}"
+            }
+
     except Exception as e:
         logger.error(f"Error during audio transcription: {e}", exc_info=True)
         return {
             "transcript": "",
             "language": "en",
+            "translated_text": None,
             "error": f"Transcription failed: {str(e)}"
         }
     finally:
+        # Immediate cleanup of temporary audio file
         if os.path.exists(tmp_path):
             try:
                 os.remove(tmp_path)

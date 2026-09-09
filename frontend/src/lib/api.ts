@@ -219,6 +219,7 @@ export function getDocumentUrl(sourceId: string): string {
 export interface TranscribeResponse {
   transcript: string;
   language?: string;
+  translated_text?: string | null;
   error?: string | null;
 }
 

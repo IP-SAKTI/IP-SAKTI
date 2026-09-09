@@ -9,12 +9,26 @@ interface ChatInputBarProps {
   isLoading?: boolean;
 }
 
+interface VoiceLangInfo {
+  code: string;
+  name: string;
+  translatedText?: string | null;
+}
+
+const LANG_NAME_MAP: Record<string, string> = {
+  en: 'English',
+  hi: 'Hindi',
+  te: 'Telugu',
+  kn: 'Kannada',
+};
+
 export default function ChatInputBar({ onSendMessage, isLoading = false }: ChatInputBarProps) {
   const [query, setQuery] = useState('');
   const [isRecording, setIsRecording] = useState(false);
   const [isTranscribing, setIsTranscribing] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
   const [audioError, setAudioError] = useState<string | null>(null);
+  const [voiceLangInfo, setVoiceLangInfo] = useState<VoiceLangInfo | null>(null);
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
@@ -32,6 +46,7 @@ export default function ChatInputBar({ onSendMessage, isLoading = false }: ChatI
 
   const startRecording = async () => {
     setAudioError(null);
+    setVoiceLangInfo(null);
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       audioChunksRef.current = [];
@@ -81,6 +96,18 @@ export default function ChatInputBar({ onSendMessage, isLoading = false }: ChatI
             setAudioError(res.error);
           } else if (res.transcript) {
             setQuery((prev) => (prev ? `${prev.trim()} ${res.transcript.trim()}` : res.transcript.trim()));
+
+            if (res.language && res.language !== 'en') {
+              const langName = LANG_NAME_MAP[res.language] || res.language.toUpperCase();
+              setVoiceLangInfo({
+                code: res.language,
+                name: langName,
+                translatedText: res.translated_text,
+              });
+            } else {
+              setVoiceLangInfo(null);
+            }
+
             setTimeout(() => {
               inputRef.current?.focus();
             }, 100);
@@ -129,6 +156,7 @@ export default function ChatInputBar({ onSendMessage, isLoading = false }: ChatI
     if (!trimmed || isLoading || isRecording || isTranscribing) return;
     onSendMessage(trimmed);
     setQuery('');
+    setVoiceLangInfo(null);
   };
 
   const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
@@ -160,8 +188,8 @@ export default function ChatInputBar({ onSendMessage, isLoading = false }: ChatI
               isRecording
                 ? `Listening... (${formatSeconds(recordingTime)}) - Click mic to stop`
                 : isTranscribing
-                ? 'Transcribing audio using Whisper model...'
-                : 'Ask about Traditional Knowledge, patents, AYUSH or ABS... (English / हिन्दी)'
+                ? 'Transcribing & translating voice query...'
+                : 'Ask about Traditional Knowledge, patents, AYUSH or ABS... (English / हिन्दी / తెలుగు / ಕನ್ನಡ)'
             }
             className="flex-1 bg-transparent py-2.5 text-sm text-[#003E29] placeholder-[#7C817A] focus:outline-none font-sans-body"
           />
@@ -171,7 +199,7 @@ export default function ChatInputBar({ onSendMessage, isLoading = false }: ChatI
             type="button"
             onClick={toggleRecording}
             disabled={isLoading || isTranscribing}
-            title={isRecording ? 'Stop recording' : 'Voice Input / Speak question'}
+            title={isRecording ? 'Stop recording' : 'Voice Input / Speak in EN, HI, TE, KN'}
             aria-label={isRecording ? 'Stop voice recording' : 'Start voice input'}
             className={`h-10 px-2.5 rounded-lg flex items-center justify-center gap-1.5 transition-all duration-200 shrink-0 cursor-pointer ${
               isRecording
@@ -211,6 +239,34 @@ export default function ChatInputBar({ onSendMessage, isLoading = false }: ChatI
           </button>
         </div>
 
+        {/* Multilingual Voice Language Badge Indicator */}
+        {voiceLangInfo && (
+          <div className="mx-3 my-1 px-3 py-1.5 bg-[#F0F5EE] border border-[#C8D7C2] text-[#003E29] rounded-md text-xs flex items-center justify-between transition-all">
+            <div className="flex items-center gap-2 overflow-hidden">
+              <span className="px-1.5 py-0.5 bg-[#003E29] text-white rounded text-[10px] uppercase font-mono font-bold shrink-0">
+                {voiceLangInfo.code}
+              </span>
+              <span className="font-semibold shrink-0">Detected: {voiceLangInfo.name}</span>
+              {voiceLangInfo.translatedText && (
+                <>
+                  <span className="text-[#7C817A] shrink-0">•</span>
+                  <span className="italic text-[#385246] truncate">
+                    Translation: &quot;{voiceLangInfo.translatedText}&quot;
+                  </span>
+                </>
+              )}
+            </div>
+            <button
+              type="button"
+              onClick={() => setVoiceLangInfo(null)}
+              className="text-[#7C817A] hover:text-[#003E29] font-bold ml-2 shrink-0 cursor-pointer"
+              title="Dismiss indicator"
+            >
+              ×
+            </button>
+          </div>
+        )}
+
         {/* Audio Error Alert Banner */}
         {audioError && (
           <div className="mx-3 my-1 px-3 py-1.5 bg-amber-50 border border-amber-200 text-amber-800 rounded-md text-xs flex items-center justify-between">
@@ -231,7 +287,7 @@ export default function ChatInputBar({ onSendMessage, isLoading = false }: ChatI
         <div className="flex items-center justify-between px-3 pt-1 pb-1 border-t border-[#C8D7C2]/40 text-[11px] text-[#7B9F8E]">
           <div className="flex items-center gap-1.5">
             <Globe className="w-3 h-3 text-[#385246]" />
-            <span>Multilingual query support · Voice input (Whisper STT) · Hindi/English</span>
+            <span>Multilingual query support · Voice input (English / Hindi / Telugu / Kannada)</span>
           </div>
           <div className="hidden sm:block">Press Enter ↵ to submit</div>
         </div>
