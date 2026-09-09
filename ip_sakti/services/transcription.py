@@ -1,9 +1,9 @@
 """
 Voice Input / Speech-to-Text & Multilingual Translation Service for IP-SAKTI Sahayak
 
-Uses pretrained Whisper 'base' model with deterministic greedy decoding (temperature=0.0),
-task="transcribe" for native script decoding (EN, HI, TE, KN) with native script prompts,
-anti-romanization validation, and QueryTranslator for semantic English translation.
+Uses pretrained Whisper 'base' model with 2-stage audio language detection,
+explicit language enforcement (language=validated_lang, task="transcribe"),
+script consistency validation, and QueryTranslator for semantic English translation.
 """
 
 import os
@@ -44,13 +44,6 @@ LANG_CODE_MAP = {
     "te": "te", "tel": "te", "telugu": "te",
     "kn": "kn", "kan": "kn", "kannada": "kn",
 }
-
-INDIC_NATIVE_PROMPT = (
-    "What permissions are required to manufacture an Ayurvedic medicine? "
-    "ఆయుర్వేద ఔషధాన్ని తయారు చేయడానికి ఏ అనుమతులు కావాలి? "
-    "आयुर्वेदिक दवा बनाने के लिए क्या लाइसेंस चाहिए? "
-    "ಆಯುರ್ವೇದ ಔಷಧ ತಯಾರಿಸಲು ಯಾವ ಅನುಮತಿಗಳು ಬೇಕು?"
-)
 
 COMMON_ENGLISH_KEYWORDS = {
     "what", "how", "which", "why", "where", "is", "are", "can", "to", "for",
@@ -111,10 +104,35 @@ def is_romanized_gibberish(text: str, source_lang: str) -> bool:
     return False
 
 
+def validate_script_consistency(text: str, lang_code: str) -> bool:
+    """
+    Enforce strict script consistency for the detected language:
+    - 'te' (Telugu) MUST NOT be written in Devanagari script (\u0900-\u097f).
+    - 'kn' (Kannada) MUST NOT be written in Devanagari script (\u0900-\u097f).
+    """
+    if not text:
+        return True
+
+    devanagari_count = sum(1 for c in text if '\u0900' <= c <= '\u097f')
+    telugu_count = sum(1 for c in text if '\u0c00' <= c <= '\u0c7f')
+    kannada_count = sum(1 for c in text if '\u0cb0' <= c <= '\u0cff')
+
+    if lang_code == "te" and devanagari_count > 0 and telugu_count == 0:
+        logger.error(f"Script Mismatch: language='te' but text is written in Devanagari script: '{text}'")
+        return False
+
+    if lang_code == "kn" and devanagari_count > 0 and kannada_count == 0:
+        logger.error(f"Script Mismatch: language='kn' but text is written in Devanagari script: '{text}'")
+        return False
+
+    return True
+
+
 def transcribe_audio_bytes(audio_bytes: bytes, filename: str = "audio.webm") -> dict:
     """
-    Transcribe audio bytes using pretrained Whisper model ('base') with task='transcribe'.
-    Decodes native script (EN, HI, TE, KN) and produces semantic English translation.
+    Transcribe audio bytes using pretrained Whisper model ('base').
+    Uses 2-stage audio language detection, explicit language enforcement (task='transcribe', language=norm_lang),
+    and script consistency validation.
     
     Args:
         audio_bytes: Raw bytes of the recorded audio file.
@@ -145,39 +163,30 @@ def transcribe_audio_bytes(audio_bytes: bytes, filename: str = "audio.webm") -> 
         tmp_path = tmp.name
 
     try:
+        import whisper
         model = get_whisper_model("base")
 
-        # Step 1: STT Transcription in native script using task="transcribe" and native script initial prompt
-        stt_result = model.transcribe(
-            tmp_path,
-            fp16=False,
-            task="transcribe",
-            temperature=0.0,
-            initial_prompt=INDIC_NATIVE_PROMPT,
-            condition_on_previous_text=False,
-            no_speech_threshold=0.6,
-            logprob_threshold=-1.0,
-            compression_ratio_threshold=2.4
-        )
+        # ── Stage 1: Audio Language Detection from Mel Spectrogram ─────────────────
+        raw_lang = "en"
+        detected_prob = 0.0
+        try:
+            audio = whisper.load_audio(tmp_path)
+            if len(audio) > 0:
+                audio_padded = whisper.pad_or_trim(audio)
+                mel = whisper.log_mel_spectrogram(audio_padded).to(model.device)
+                _, probs = model.detect_language(mel)
+                top_lang = max(probs, key=probs.get)
+                raw_lang = str(top_lang).lower().strip()
+                detected_prob = float(probs[top_lang])
+                logger.info(f"Whisper Audio Language Detection: raw_lang='{raw_lang}', prob={detected_prob:.4f}")
+        except Exception as det_err:
+            logger.warning(f"Whisper detect_language fallback error: {det_err}")
 
-        raw_text = stt_result.get("text", "").strip()
-        raw_lang = (stt_result.get("language") or "en").lower().strip()
         norm_lang = LANG_CODE_MAP.get(raw_lang, raw_lang)
 
-        logger.info(f"Whisper STT transcript: '{raw_text}' (raw_lang={raw_lang}, norm_lang={norm_lang})")
-
-        # Reject empty or no-speech audio
-        if not raw_text:
-            return {
-                "transcript": "",
-                "language": norm_lang if norm_lang in SUPPORTED_VOICE_LANGUAGES else "en",
-                "translated_text": None,
-                "error": "No speech detected in audio. Please try speaking clearly."
-            }
-
-        # Language validation: reject unsupported languages
+        # Reject unsupported audio language
         if norm_lang not in SUPPORTED_VOICE_LANGUAGES:
-            logger.warning(f"Unsupported voice language detected: '{norm_lang}'")
+            logger.warning(f"Unsupported voice language detected: '{norm_lang}' (prob={detected_prob:.4f})")
             return {
                 "transcript": "",
                 "language": "unsupported",
@@ -185,7 +194,42 @@ def transcribe_audio_bytes(audio_bytes: bytes, filename: str = "audio.webm") -> 
                 "error": "Unsupported voice language"
             }
 
-        # English voice query: transcript and translated_text are identical
+        # ── Stage 2: Targeted STT Transcription with Explicit Language Enforcement ─
+        stt_result = model.transcribe(
+            tmp_path,
+            fp16=False,
+            task="transcribe",                  # Native speech-to-text ONLY
+            language=norm_lang,                 # Explicitly enforce detected language & script!
+            temperature=0.0,                    # Greedy deterministic decoding
+            condition_on_previous_text=False,
+            no_speech_threshold=0.6,
+            logprob_threshold=-1.0,
+            compression_ratio_threshold=2.4
+        )
+
+        raw_text = stt_result.get("text", "").strip()
+        logger.info(f"Whisper STT decoded (lang={norm_lang}): '{raw_text}'")
+
+        # Reject empty or no-speech audio
+        if not raw_text:
+            return {
+                "transcript": "",
+                "language": norm_lang,
+                "translated_text": None,
+                "error": "No speech detected in audio. Please try speaking clearly."
+            }
+
+        # ── Stage 3: Script Consistency Validation ─────────────────────────────────
+        if not validate_script_consistency(raw_text, norm_lang):
+            logger.error(f"Script Mismatch Rejected: lang={norm_lang} cannot produce script of '{raw_text}'")
+            return {
+                "transcript": "",
+                "language": norm_lang,
+                "translated_text": None,
+                "error": "Transcription script mismatch. Please speak clearly."
+            }
+
+        # ── Stage 4: English vs Multilingual Semantic Translation ──────────────────
         if norm_lang == "en":
             return {
                 "transcript": raw_text,
@@ -194,10 +238,7 @@ def transcribe_audio_bytes(audio_bytes: bytes, filename: str = "audio.webm") -> 
                 "error": None
             }
 
-        # Step 2: Semantic Translation to English for Indian Languages (hi, te, kn)
         translated_text = None
-
-        # Route A: QueryTranslator semantic translation (primary for native script)
         try:
             translator = get_query_translator()
             qt_res = translator.translate_to_retrieval_language(raw_text, norm_lang)
@@ -208,13 +249,14 @@ def transcribe_audio_bytes(audio_bytes: bytes, filename: str = "audio.webm") -> 
         except Exception as qt_err:
             logger.warning(f"QueryTranslator error: {qt_err}")
 
-        # Route B: Direct neural audio-to-English translation task ("translate") via Whisper if Route A failed
+        # Secondary translation route: Whisper built-in translate task
         if not translated_text or is_romanized_gibberish(translated_text, norm_lang):
             try:
                 whisper_trans = model.transcribe(
                     tmp_path,
                     fp16=False,
                     task="translate",
+                    language=norm_lang,
                     temperature=0.0,
                     condition_on_previous_text=False
                 )
@@ -225,7 +267,6 @@ def transcribe_audio_bytes(audio_bytes: bytes, filename: str = "audio.webm") -> 
             except Exception as w_err:
                 logger.warning(f"Whisper translate task error: {w_err}")
 
-        # Final Fallback check
         if not translated_text or is_romanized_gibberish(translated_text, norm_lang):
             logger.warning(f"Translation failed or produced romanization for [{norm_lang}] '{raw_text}'")
             return {
