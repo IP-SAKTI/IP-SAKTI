@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import {
   ShieldCheck,
@@ -15,8 +15,11 @@ import {
   Cpu,
   Layers,
   Sparkles,
+  Volume2,
+  Square,
 } from 'lucide-react';
 import { APIQueryResponse, getDocumentUrl } from '@/lib/api';
+import { speakText, stopSpeaking } from '@/lib/voice';
 
 interface AnswerWorkspaceProps {
   query: string;
@@ -24,11 +27,25 @@ interface AnswerWorkspaceProps {
   onSaveResearch?: () => void;
 }
 
+/**
+ * Detect primary language of response text based on Unicode character script.
+ */
+function detectTextLanguage(text: string, defaultLang?: string): string {
+  if (!text) return defaultLang || 'en';
+  if (/[\u0c00-\u0c7f]/.test(text)) return 'te';
+  if (/[\u0c80-\u0cff]/.test(text)) return 'kn';
+  if (/[\u0900-\u097f]/.test(text)) return 'hi';
+  return defaultLang || 'en';
+}
+
 export default function AnswerWorkspace({
   query,
   response,
   onSaveResearch,
 }: AnswerWorkspaceProps) {
+  const [isSpeakingState, setIsSpeakingState] = useState<boolean>(false);
+  const lastSpokenIdRef = useRef<string>('');
+
   // Safely extract Cosine Similarity score from backend vector retrieval
   let rawCosineSim: number | null = null;
   if (typeof response.cosine_similarity === 'number' && !isNaN(response.cosine_similarity)) {
@@ -50,6 +67,46 @@ export default function AnswerWorkspace({
         .filter((line) => line.trim().length > 20 && !line.startsWith('['))
         .slice(0, 3)
     : [];
+
+  const respLang = (response as any).language || detectTextLanguage(response.answer || '', 'en');
+  const answerId = response.answer ? `${query}_${response.answer.slice(0, 50)}` : '';
+
+  // Automatic Speech Synthesis on NEW Answer (Runs ONCE per unique answer)
+  useEffect(() => {
+    if (answerId && lastSpokenIdRef.current !== answerId) {
+      lastSpokenIdRef.current = answerId;
+      const targetLang = detectTextLanguage(response.answer || '', respLang);
+
+      speakText({
+        text: response.answer || '',
+        lang: targetLang,
+        onStart: () => setIsSpeakingState(true),
+        onEnd: () => setIsSpeakingState(false),
+        onError: () => setIsSpeakingState(false),
+      });
+    }
+
+    return () => {
+      stopSpeaking();
+      setIsSpeakingState(false);
+    };
+  }, [answerId, response.answer, respLang, query]);
+
+  const toggleSpeech = () => {
+    if (isSpeakingState) {
+      stopSpeaking();
+      setIsSpeakingState(false);
+    } else {
+      const targetLang = detectTextLanguage(response.answer || '', respLang);
+      speakText({
+        text: response.answer || '',
+        lang: targetLang,
+        onStart: () => setIsSpeakingState(true),
+        onEnd: () => setIsSpeakingState(false),
+        onError: () => setIsSpeakingState(false),
+      });
+    }
+  };
 
   return (
     <div className="space-y-6 my-6 relative z-10 font-sans-body">
@@ -137,13 +194,40 @@ export default function AnswerWorkspace({
 
       {/* 3. MAIN ANSWER SYNTHESIS */}
       <div className="bg-white border border-[#C8D7C2] rounded-xl p-6 shadow-xs space-y-4">
-        <div className="border-b border-[#C8D7C2]/60 pb-3">
-          <h2 className="font-serif-heading text-2xl font-bold text-[#003E29]">
-            Research Synthesis & Answer
-          </h2>
-          <div className="text-xs text-[#385246] mt-0.5">
-            Grounded in verified statutory provisions and Traditional Knowledge archives
+        <div className="flex items-center justify-between border-b border-[#C8D7C2]/60 pb-3">
+          <div>
+            <h2 className="font-serif-heading text-2xl font-bold text-[#003E29]">
+              Research Synthesis & Answer
+            </h2>
+            <div className="text-xs text-[#385246] mt-0.5">
+              Grounded in verified statutory provisions and Traditional Knowledge archives
+            </div>
           </div>
+
+          {/* Accessible Speaker / Stop Control */}
+          <button
+            type="button"
+            onClick={toggleSpeech}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all cursor-pointer ${
+              isSpeakingState
+                ? 'bg-red-50 text-red-600 border-red-200 hover:bg-red-100'
+                : 'bg-[#EEF3E4] hover:bg-[#E3EBD7] text-[#003E29] border-[#C8D7C2]'
+            }`}
+            title={isSpeakingState ? 'Stop reading answer aloud' : 'Read answer aloud'}
+            aria-label={isSpeakingState ? 'Stop reading answer' : 'Read answer'}
+          >
+            {isSpeakingState ? (
+              <>
+                <Square className="w-3.5 h-3.5 fill-red-600 text-red-600" />
+                <span>Stop</span>
+              </>
+            ) : (
+              <>
+                <Volume2 className="w-3.5 h-3.5 text-[#003E29]" />
+                <span>Speak</span>
+              </>
+            )}
+          </button>
         </div>
 
         <div className="text-sm text-[#1A2E26] leading-relaxed whitespace-pre-wrap font-sans-body">
