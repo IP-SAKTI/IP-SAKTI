@@ -80,7 +80,10 @@ class SafeAbstentionHandler:
                     extra={"query_id": str(query_id), "reason": reason},
                 )
             except Exception as exc:
-                logger.warning(f"Failed to record escalation in Supabase: {exc}")
+                if "PGRST205" in str(exc) or "404" in str(exc):
+                    logger.debug(f"Telemetry table 'escalations' not present in Supabase schema: {exc}")
+                else:
+                    logger.warning(f"Failed to record escalation in Supabase: {exc}")
 
         return FinalResponse(
             query_id=query_id,

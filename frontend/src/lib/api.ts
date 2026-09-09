@@ -48,14 +48,25 @@ export interface Conversation {
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
-export const MOCK_CONVERSATIONS: Conversation[] = [];
+function getAuthHeaders(): Record<string, string> {
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+  };
+  if (typeof window !== 'undefined') {
+    const token = localStorage.getItem('ipsakti_auth_token');
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+  }
+  return headers;
+}
 
 export async function listConversations(userId?: string): Promise<Conversation[]> {
   try {
     const url = userId
       ? `${API_BASE_URL}/history?user_id=${encodeURIComponent(userId)}`
       : `${API_BASE_URL}/history`;
-    const res = await fetch(url);
+    const res = await fetch(url, { headers: getAuthHeaders() });
     if (res.ok) {
       const data = await res.json();
       if (Array.isArray(data)) {
@@ -73,7 +84,7 @@ export async function getConversationDetailsAPI(id: string, userId?: string): Pr
     const url = userId
       ? `${API_BASE_URL}/history/${encodeURIComponent(id)}?user_id=${encodeURIComponent(userId)}`
       : `${API_BASE_URL}/history/${encodeURIComponent(id)}`;
-    const res = await fetch(url);
+    const res = await fetch(url, { headers: getAuthHeaders() });
     if (res.ok) {
       return await res.json();
     }
@@ -87,7 +98,7 @@ export async function saveConversationToStorage(conv: Conversation, userId?: str
   try {
     await fetch(`${API_BASE_URL}/history`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: getAuthHeaders(),
       body: JSON.stringify({
         id: conv.id,
         title: conv.title,
@@ -106,7 +117,7 @@ export async function deleteConversationFromStorage(id: string, userId?: string)
     const url = userId
       ? `${API_BASE_URL}/history/${encodeURIComponent(id)}?user_id=${encodeURIComponent(userId)}`
       : `${API_BASE_URL}/history/${encodeURIComponent(id)}`;
-    await fetch(url, { method: 'DELETE' });
+    await fetch(url, { method: 'DELETE', headers: getAuthHeaders() });
   } catch (err) {
     console.warn('FastAPI delete /history failed:', err);
   }
@@ -123,7 +134,7 @@ export async function submitContactInquiryAPI(payload: {
   try {
     const res = await fetch(`${API_BASE_URL}/contact`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: getAuthHeaders(),
       body: JSON.stringify(payload),
     });
     if (res.ok) {
@@ -143,9 +154,7 @@ export async function processQueryAPI(payload: APIQueryPayload): Promise<APIQuer
   try {
     const res = await fetch(`${API_BASE_URL}/query`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers: getAuthHeaders(),
       body: JSON.stringify(payload),
     });
 

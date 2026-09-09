@@ -17,16 +17,23 @@ from uuid import uuid4
 from ip_sakti.utils.supabase_client import SupabaseClient
 
 
+import uuid
+
 def sanitize_uuid(user_id: Optional[str]) -> Optional[str]:
     """Sanitize user_id string to a valid UUID format for PostgreSQL UUID columns."""
     if not user_id:
         return None
-    cleaned = str(user_id).replace("usr-", "").strip()
+    raw = str(user_id).strip()
     try:
-        from uuid import UUID
-        return str(UUID(cleaned))
+        return str(uuid.UUID(raw))
     except Exception:
-        return None
+        pass
+    cleaned = raw.replace("usr-", "").strip()
+    try:
+        return str(uuid.UUID(cleaned))
+    except Exception:
+        pass
+    return str(uuid.uuid5(uuid.NAMESPACE_DNS, raw))
 
 logger = logging.getLogger(__name__)
 

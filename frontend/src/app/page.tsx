@@ -38,17 +38,43 @@ export default function DashboardPage() {
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [stages, setStages] = useState<Stage[]>(DEFAULT_STAGES);
 
-  // Load conversations scoped to user
+  // Load conversations scoped to user and restore active workspace on page load/refresh
   useEffect(() => {
-    async function loadData() {
+    async function loadDataAndRestore() {
       try {
         const fetched = await listConversations(user?.id);
         setConversations(fetched || []);
+
+        const savedActiveId = localStorage.getItem('ipsakti_active_conversation_id');
+        if (savedActiveId) {
+          setActiveConversationId(savedActiveId);
+
+          const detail: any = await getConversationDetailsAPI(savedActiveId, user?.id);
+          if (detail && detail.messages && detail.messages.length > 0) {
+            const lastAssistantMsg = [...detail.messages].reverse().find((m: any) => m.role === 'assistant');
+            const userMsg = detail.messages.find((m: any) => m.role === 'user');
+            if (userMsg) setCurrentQuery(userMsg.content);
+            if (lastAssistantMsg && lastAssistantMsg.metadata?.response) {
+              setActiveResponse(lastAssistantMsg.metadata.response);
+            } else if (lastAssistantMsg) {
+              setActiveResponse({
+                query: userMsg?.content || 'Research Query',
+                answer: lastAssistantMsg.content,
+                confidence: 0.95,
+                evidence: [],
+                citations: [],
+                agents_invoked: ['IP Agent'],
+                is_abstention: false,
+                disclaimer: 'Retrieved conversation history from database',
+              });
+            }
+          }
+        }
       } catch (err) {
         console.warn('API backend conversation fetch fallback:', err);
       }
     }
-    loadData();
+    loadDataAndRestore();
   }, [user?.id]);
 
   const handleSendMessage = async (queryText: string) => {
@@ -92,8 +118,9 @@ export default function DashboardPage() {
 
       setActiveResponse(response);
 
+      const convId = response.query_id || Date.now().toString();
       const newConv: Conversation = {
-        id: Date.now().toString(),
+        id: convId,
         title: queryText.length > 28 ? queryText.slice(0, 28) + '...' : queryText,
         created_at: new Date().toISOString(),
         query: queryText,
@@ -101,7 +128,8 @@ export default function DashboardPage() {
       };
 
       setConversations((prev) => [newConv, ...prev]);
-      setActiveConversationId(newConv.id);
+      setActiveConversationId(convId);
+      localStorage.setItem('ipsakti_active_conversation_id', convId);
       saveConversationToStorage(newConv, user?.id);
     } catch (err) {
       clearInterval(interval);
@@ -124,6 +152,7 @@ export default function DashboardPage() {
 
   const handleNewChat = () => {
     setActiveConversationId(null);
+    localStorage.removeItem('ipsakti_active_conversation_id');
     setCurrentQuery('');
     setActiveResponse(null);
     setStages(DEFAULT_STAGES);
@@ -131,36 +160,35 @@ export default function DashboardPage() {
 
   const handleSelectConversation = async (id: string) => {
     setActiveConversationId(id);
+    localStorage.setItem('ipsakti_active_conversation_id', id);
     const selected = conversations.find((c) => c.id === id);
-    if (selected) {
+    if (selected && selected.response) {
       setCurrentQuery(selected.query || selected.title);
-      if (selected.response) {
-        setActiveResponse(selected.response);
-      } else {
-        try {
-          const detail: any = await getConversationDetailsAPI(id, user?.id);
-          if (detail && detail.messages && detail.messages.length > 0) {
-            const lastAssistantMsg = [...detail.messages].reverse().find((m: any) => m.role === 'assistant');
-            const userMsg = detail.messages.find((m: any) => m.role === 'user');
-            if (userMsg) setCurrentQuery(userMsg.content);
-            if (lastAssistantMsg && lastAssistantMsg.metadata?.response) {
-              setActiveResponse(lastAssistantMsg.metadata.response);
-            } else if (lastAssistantMsg) {
-              setActiveResponse({
-                query: userMsg?.content || selected.title,
-                answer: lastAssistantMsg.content,
-                confidence: 0.9,
-                evidence: [],
-                citations: [],
-                agents_invoked: ['IP Agent'],
-                is_abstention: false,
-                disclaimer: 'Retrieved conversation history from database',
-              });
-            }
+      setActiveResponse(selected.response);
+    } else {
+      try {
+        const detail: any = await getConversationDetailsAPI(id, user?.id);
+        if (detail && detail.messages && detail.messages.length > 0) {
+          const lastAssistantMsg = [...detail.messages].reverse().find((m: any) => m.role === 'assistant');
+          const userMsg = detail.messages.find((m: any) => m.role === 'user');
+          if (userMsg) setCurrentQuery(userMsg.content);
+          if (lastAssistantMsg && lastAssistantMsg.metadata?.response) {
+            setActiveResponse(lastAssistantMsg.metadata.response);
+          } else if (lastAssistantMsg) {
+            setActiveResponse({
+              query: userMsg?.content || selected?.title || 'Research Query',
+              answer: lastAssistantMsg.content,
+              confidence: 0.95,
+              evidence: [],
+              citations: [],
+              agents_invoked: ['IP Agent'],
+              is_abstention: false,
+              disclaimer: 'Retrieved conversation history from database',
+            });
           }
-        } catch (err) {
-          console.error('Failed to load conversation details:', err);
         }
+      } catch (err) {
+        console.error('Failed to load conversation details:', err);
       }
     }
   };

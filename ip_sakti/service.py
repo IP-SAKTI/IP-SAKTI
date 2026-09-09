@@ -64,7 +64,7 @@ class IPSAKTIService:
 
         now_iso = datetime.now(timezone.utc).isoformat()
 
-        # Log query metadata to Supabase if configured
+        # Log query metadata to Supabase if configured (optional telemetry)
         if self.supabase_client.is_configured:
             try:
                 self.supabase_client.insert(
@@ -82,7 +82,10 @@ class IPSAKTIService:
                     use_service_role=True if self.supabase_client.service_role_key else False,
                 )
             except Exception as exc:
-                logger.warning(f"Failed to log query record to Supabase: {exc}")
+                if "PGRST205" in str(exc) or "404" in str(exc):
+                    logger.debug(f"Telemetry table 'queries' not present in Supabase schema: {exc}")
+                else:
+                    logger.warning(f"Failed to log query record to Supabase: {exc}")
 
         # Execute full pipeline
         response = self.coordinator.execute(request)
@@ -103,7 +106,10 @@ class IPSAKTIService:
                     use_service_role=True if self.supabase_client.service_role_key else False,
                 )
             except Exception as exc:
-                logger.warning(f"Failed to update query record metrics in Supabase: {exc}")
+                if "PGRST205" in str(exc) or "404" in str(exc):
+                    logger.debug(f"Telemetry table 'queries' not present in Supabase schema: {exc}")
+                else:
+                    logger.warning(f"Failed to update query record metrics in Supabase: {exc}")
 
         return response
 

@@ -182,8 +182,24 @@ CREATE TABLE IF NOT EXISTS public.escalations (
 
 ALTER TABLE public.escalations ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "Users can insert escalations"
-    ON public.escalations FOR INSERT
+-- 8. QUERIES TELEMETRY TABLE
+CREATE TABLE IF NOT EXISTS public.queries (
+    query_id TEXT PRIMARY KEY,
+    user_id UUID REFERENCES auth.users(id) ON DELETE SET NULL,
+    raw_query TEXT NOT NULL,
+    detected_lang TEXT,
+    jurisdiction TEXT,
+    formulation_cat TEXT,
+    is_abstention BOOLEAN DEFAULT FALSE,
+    agents_invoked JSONB,
+    confidence_score DOUBLE PRECISION,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE public.queries ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Users can insert query telemetry"
+    ON public.queries FOR INSERT
     WITH CHECK (true);
 
 -- Indexes for optimal querying
@@ -191,3 +207,5 @@ CREATE INDEX IF NOT EXISTS idx_conversations_user_id ON public.conversations(use
 CREATE INDEX IF NOT EXISTS idx_messages_conversation_id ON public.messages(conversation_id);
 CREATE INDEX IF NOT EXISTS idx_research_sessions_user_id ON public.research_sessions(user_id);
 CREATE INDEX IF NOT EXISTS idx_support_inquiries_user_id ON public.support_inquiries(user_id);
+CREATE INDEX IF NOT EXISTS idx_queries_user_id ON public.queries(user_id);
+

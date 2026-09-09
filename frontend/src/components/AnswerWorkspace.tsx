@@ -199,7 +199,15 @@ export default function AnswerWorkspace({
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {response.evidence.map((item, index) => {
-              const docUrl = item.source_id ? getDocumentUrl(item.source_id) : item.source_url;
+              const rawUrl = item.source_url || (item as any).url;
+              const isWebSource = Boolean(
+                item.source_id?.startsWith('web-') ||
+                item.source_id?.startsWith('live-') ||
+                (rawUrl && rawUrl.startsWith('http') && !rawUrl.includes('/document/'))
+              );
+              
+              const docUrl = rawUrl && rawUrl.startsWith('http') ? rawUrl : item.source_id ? getDocumentUrl(item.source_id) : '#';
+              const hasValidUrl = docUrl && docUrl !== '#';
 
               return (
                 <div
@@ -207,17 +215,35 @@ export default function AnswerWorkspace({
                   className="bg-white border border-[#C8D7C2] rounded-xl p-4 shadow-xs hover:shadow-md transition-shadow flex flex-col justify-between"
                 >
                   <div>
-                    <div className="flex items-start justify-between gap-2 mb-1.5">
-                      <div className="font-serif-heading font-bold text-sm text-[#003E29] leading-snug">
-                        {item.title}
-                      </div>
-                      <span className="shrink-0 bg-emerald-50 text-emerald-800 text-[10px] font-bold px-2 py-0.5 rounded border border-emerald-200">
-                        Official Source
+                    <div className="flex items-center justify-between gap-2 mb-2">
+                      <span
+                        className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded border ${
+                          isWebSource
+                            ? 'bg-blue-50 text-blue-800 border-blue-200'
+                            : 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                        }`}
+                      >
+                        {isWebSource ? '🌐 LIVE WEB SOURCE' : '📜 INTERNAL KNOWLEDGE BASE'}
+                      </span>
+                      <span className="font-mono text-[10px] font-bold bg-[#EEF3E4] text-[#003E29] px-2 py-0.5 rounded border border-[#C8D7C2]">
+                        SOURCE {index + 1}
                       </span>
                     </div>
 
-                    <div className="text-[11px] font-semibold text-[#385246] mb-2">
-                      {item.authority} · {item.source_name}
+                    <div className="font-serif-heading font-bold text-sm text-[#003E29] leading-snug mb-1">
+                      {item.title}
+                    </div>
+
+                    <div className="text-[11px] font-semibold text-[#385246] mb-2 flex flex-wrap items-center gap-1.5">
+                      <span>{item.authority || 'Government Authority'}</span>
+                      {item.source_name && item.source_name !== item.title && (
+                        <span>· {item.source_name}</span>
+                      )}
+                      {item.jurisdiction && (
+                        <span className="bg-gray-100 text-gray-700 text-[10px] px-1.5 py-0.2 rounded">
+                          {item.jurisdiction}
+                        </span>
+                      )}
                     </div>
 
                     <p className="text-xs text-[#263A35] leading-relaxed bg-[#FAFDF6] p-3 rounded-lg border border-[#C8D7C2]/50 italic">
@@ -225,8 +251,8 @@ export default function AnswerWorkspace({
                     </p>
                   </div>
 
-                  {docUrl && (
-                    <div className="mt-3 pt-2 border-t border-[#C8D7C2]/40 flex justify-end">
+                  <div className="mt-3 pt-2 border-t border-[#C8D7C2]/40 flex justify-end">
+                    {hasValidUrl ? (
                       <a
                         href={docUrl}
                         target="_blank"
@@ -234,11 +260,13 @@ export default function AnswerWorkspace({
                         className="inline-flex items-center gap-1 text-xs font-semibold text-[#003E29] hover:underline"
                       >
                         <FileText className="w-3.5 h-3.5 text-[#003E29]" />
-                        <span>Inspect Document Chunk</span>
+                        <span>View Original Source ↗</span>
                         <ExternalLink className="w-3 h-3" />
                       </a>
-                    </div>
-                  )}
+                    ) : (
+                      <span className="text-[11px] text-gray-400 italic">Source link unavailable</span>
+                    )}
+                  </div>
                 </div>
               );
             })}

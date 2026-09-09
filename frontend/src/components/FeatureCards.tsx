@@ -11,23 +11,23 @@ export default function FeatureCards({ onSelectQuery }: FeatureCardsProps) {
   const cards = [
     {
       id: 'prior-art',
-      title: 'Prior Art Inquiry',
-      copy: 'Explore patent prior art, exclusions and Traditional Knowledge references.',
-      query: 'Is turmeric + neem patentable in India?',
+      title: 'Prior Art & Section 3(p)',
+      copy: 'Explore patent prior art, Traditional Knowledge exclusions under Section 3(p), and biological material disclosure requirements.',
+      query: 'Is a formulation containing turmeric and neem patentable in India, considering the Traditional Knowledge exclusion under Section 3(p)?',
       icon: Search,
     },
     {
       id: 'ayush-compliance',
-      title: 'AYUSH Compliance',
-      copy: 'Examine regulatory requirements and formulation-specific considerations.',
-      query: 'AYUSH licensing steps under Rule 158-B',
+      title: 'AYUSH Regulatory Compliance',
+      copy: 'Examine ASU drug licensing under Rule 158-B, Form 24D requirements, and proof of safety guidelines.',
+      query: 'What regulatory requirements should be considered before manufacturing and commercially selling an Ayurvedic formulation in India?',
       icon: FileText,
     },
     {
       id: 'abs-consent',
-      title: 'ABS & Consent',
-      copy: 'Examine Access & Benefit-Sharing obligations and relevant biological-resource provisions.',
-      query: 'ABS obligations under Biodiversity Act',
+      title: 'TK & Access & Benefit Sharing',
+      copy: 'Examine Biological Diversity Act 2002 provisions, NBA prior approval, and benefit sharing regulations.',
+      query: 'What Access and Benefit Sharing considerations may apply when traditional knowledge and biological resources are used for commercial product development?',
       icon: Shield,
     },
   ];
