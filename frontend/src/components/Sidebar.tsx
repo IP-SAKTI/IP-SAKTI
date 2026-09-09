@@ -149,7 +149,11 @@ export default function Sidebar({
 
           <Link
             href="/settings"
-            className="flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-xs font-medium text-[#CBE0D6] hover:bg-[#044D34]/50 hover:text-white transition-colors"
+            className={`flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+              pathname === '/settings'
+                ? 'bg-[#0A5F42] text-white font-semibold border border-[#1E5C46]'
+                : 'text-[#CBE0D6] hover:bg-[#044D34]/50 hover:text-white'
+            }`}
           >
             <Settings className="w-4 h-4 text-[#A1C9B6]" />
             <span>Settings</span>
