@@ -120,8 +120,9 @@ export default function ChatInputBar({ onSendMessage, isLoading = false }: ChatI
 
         setIsTranscribing(true);
         try {
-          const res = await transcribeAudio(audioBlob);
-          if (res.error) {
+          const langHint = selectedLang.split('-')[0];
+          const res = await transcribeAudio(audioBlob, langHint);
+          if (res.error && !res.transcript) {
             setAudioError(
               res.error === 'Unsupported voice language' || res.language === 'unsupported'
                 ? 'Unsupported voice language. Please speak in English, Hindi, Telugu, or Kannada.'

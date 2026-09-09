@@ -223,9 +223,12 @@ export interface TranscribeResponse {
   error?: string | null;
 }
 
-export async function transcribeAudio(audioBlob: Blob): Promise<TranscribeResponse> {
+export async function transcribeAudio(audioBlob: Blob, language?: string): Promise<TranscribeResponse> {
   const formData = new FormData();
   formData.append('file', audioBlob, 'voice_input.webm');
+  if (language) {
+    formData.append('language', language);
+  }
 
   const res = await fetch(`${API_BASE_URL}/transcribe`, {
     method: 'POST',

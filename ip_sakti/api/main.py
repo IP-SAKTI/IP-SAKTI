@@ -385,10 +385,13 @@ async def contact_support(payload: ContactRequest) -> ContactResponse:
 # ---------------------------------------------------------------------------
 
 @app.post("/transcribe", tags=["Voice Input"])
-async def transcribe_audio(file: UploadFile = File(...)):
+async def transcribe_audio(
+    file: UploadFile = File(...),
+    language: Optional[str] = Form(default=None)
+):
     """
-    Accepts recorded audio file (webm, wav, m4a, mp3, ogg) and returns transcribed text
-    using pretrained Whisper model.
+    Accepts recorded audio file (webm, wav, m4a, mp3, ogg) and optional language hint
+    and returns transcribed text using pretrained Whisper model.
     """
     if not file:
         raise HTTPException(status_code=400, detail="No audio file provided.")
@@ -396,7 +399,12 @@ async def transcribe_audio(file: UploadFile = File(...)):
     try:
         content = await file.read()
         from ip_sakti.services.transcription import transcribe_audio_bytes
-        res = transcribe_audio_bytes(content, filename=file.filename or "audio.webm", content_type=file.content_type)
+        res = transcribe_audio_bytes(
+            content,
+            filename=file.filename or "audio.webm",
+            content_type=file.content_type,
+            target_lang=language
+        )
         return res
     except Exception as e:
         logger.error(f"Transcription API error: {e}", exc_info=True)

@@ -40,10 +40,10 @@ _QUERY_TRANSLATOR = None
 SUPPORTED_VOICE_LANGUAGES = {"en", "hi", "te", "kn"}
 
 LANG_CODE_MAP = {
-    "en": "en", "eng": "en", "english": "en",
-    "hi": "hi", "hin": "hi", "hindi": "hi",
-    "te": "te", "tel": "te", "telugu": "te",
-    "kn": "kn", "kan": "kn", "kannada": "kn",
+    "en": "en", "eng": "en", "english": "en", "en-in": "en", "en-us": "en",
+    "hi": "hi", "hin": "hi", "hindi": "hi", "hi-in": "hi", "ur": "hi", "mr": "hi", "pa": "hi", "ne": "hi", "bh": "hi", "sd": "hi",
+    "te": "te", "tel": "te", "telugu": "te", "te-in": "te", "ta": "te", "si": "te",
+    "kn": "kn", "kan": "kn", "kannada": "kn", "kn-in": "kn", "ml": "kn",
 }
 
 COMMON_ENGLISH_KEYWORDS = {
@@ -134,7 +134,12 @@ def validate_script_consistency(text: str, lang_code: str) -> bool:
     return True
 
 
-def transcribe_audio_bytes(audio_bytes: bytes, filename: str = "audio.webm", content_type: str = None) -> dict:
+def transcribe_audio_bytes(
+    audio_bytes: bytes,
+    filename: str = "audio.webm",
+    content_type: str = None,
+    target_lang: str = None
+) -> dict:
     """
     Transcribe audio bytes using pretrained Whisper model ('base').
     Uses 2-stage audio language detection, explicit language enforcement (task='transcribe', language=norm_lang),
@@ -144,6 +149,7 @@ def transcribe_audio_bytes(audio_bytes: bytes, filename: str = "audio.webm", con
         audio_bytes: Raw bytes of the recorded audio file.
         filename: Original filename or hint for format extension.
         content_type: MIME type of the uploaded audio file.
+        target_lang: Optional target language code hint (en, hi, te, kn).
         
     Returns:
         dict: {
@@ -175,7 +181,7 @@ def transcribe_audio_bytes(audio_bytes: bytes, filename: str = "audio.webm", con
         import whisper
         model = get_whisper_model("base")
 
-        # ── Stage 1: Audio Language Detection from Mel Spectrogram ─────────────────
+        # ── Stage 1: Audio Language Detection & Target Hint Enforcement ────────────
         raw_lang = "en"
         detected_prob = 0.0
         try:
@@ -193,29 +199,17 @@ def transcribe_audio_bytes(audio_bytes: bytes, filename: str = "audio.webm", con
 
         norm_lang = LANG_CODE_MAP.get(raw_lang, raw_lang)
 
-        # Reject unsupported audio language
-        if norm_lang not in SUPPORTED_VOICE_LANGUAGES:
-            logger.warning(f"Unsupported voice language detected: '{norm_lang}' (prob={detected_prob:.4f})")
-            
-            # Print Verbose Diagnostic Log to Terminal
-            print("\n" + "=" * 50, flush=True)
-            print("=== VOICE DEBUG ===", flush=True)
-            print(f"MIME: {mime}", flush=True)
-            print(f"Size: {len(audio_bytes)} bytes", flush=True)
-            print(f"Temp Audio Path: {tmp_path}", flush=True)
-            print(f"\nWhisper detected:\n{raw_lang}\nprobability:\n{detected_prob:.2f}", flush=True)
-            print(f"\nTranscription:\nlanguage={norm_lang}\ntask=transcribe", flush=True)
-            print(f"\nRAW TRANSCRIPT:\n<unsupported language '{norm_lang}'>", flush=True)
-            print(f"\nTRANSLATION INPUT:\nN/A", flush=True)
-            print(f"\nTRANSLATION OUTPUT:\nN/A", flush=True)
-            print("=" * 50 + "\n", flush=True)
+        # Honor explicit target_lang hint from user UI selection if provided
+        if target_lang:
+            hint_clean = LANG_CODE_MAP.get(target_lang.lower().strip(), target_lang.lower().strip())
+            if hint_clean in SUPPORTED_VOICE_LANGUAGES:
+                norm_lang = hint_clean
+                logger.info(f"Enforcing target_lang hint from UI selection: '{norm_lang}'")
 
-            return {
-                "transcript": "",
-                "language": "unsupported",
-                "translated_text": None,
-                "error": "Unsupported voice language"
-            }
+        # Fallback to 'en' if language is still unsupported instead of hard rejection
+        if norm_lang not in SUPPORTED_VOICE_LANGUAGES:
+            logger.warning(f"Unsupported language '{norm_lang}', defaulting to 'en'")
+            norm_lang = "en"
 
         # ── Stage 2: Targeted STT Transcription with Explicit Language Enforcement ─
         stt_result = model.transcribe(
