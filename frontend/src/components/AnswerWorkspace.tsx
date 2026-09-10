@@ -60,6 +60,18 @@ export default function AnswerWorkspace({
   const hasValidCosineSim = rawCosineSim !== null;
   const cosineSimVal = hasValidCosineSim ? rawCosineSim!.toFixed(4) : 'N/A';
 
+  // Extract Bayesian Confidence Engine metrics
+  const rawConf = typeof response.confidence_score === 'number'
+    ? response.confidence_score
+    : (typeof response.confidence === 'number' ? response.confidence : 0);
+
+  const confPct = typeof response.confidence_percentage === 'number'
+    ? response.confidence_percentage
+    : Math.round(rawConf * 100);
+
+  const confLevel = response.confidence_level || (confPct >= 90 ? 'HIGH' : confPct >= 70 ? 'MEDIUM' : 'LOW');
+  const isAbstained = Boolean(response.is_abstention || response.confidence_should_abstain);
+
   // Extract key findings bullet points from answer if available
   const keyFindings = response.answer
     ? response.answer
@@ -142,18 +154,38 @@ export default function AnswerWorkspace({
               );
             })}
 
-            {/* Cosine Similarity Score */}
+            {/* 1. Cosine Similarity Score (Vector Retrieval Metric) */}
             {hasValidCosineSim ? (
-              <div className="flex items-center gap-1.5 bg-[#003E29] text-white text-xs font-semibold px-3 py-1 rounded-md shadow-xs">
+              <div className="flex items-center gap-1.5 bg-[#003E29] text-white text-xs font-semibold px-3 py-1 rounded-md shadow-xs" title="FAISS Vector Cosine Similarity Score">
                 <ShieldCheck className="w-3.5 h-3.5 text-emerald-300" />
-                <span>Cosine Similarity: {cosineSimVal}</span>
+                <span>Cosine Sim: {cosineSimVal}</span>
               </div>
             ) : (
               <div className="flex items-center gap-1.5 bg-gray-100 text-gray-700 text-xs font-medium px-2.5 py-1 rounded-md">
                 <Info className="w-3.5 h-3.5" />
-                <span>Cosine Similarity: N/A</span>
+                <span>Cosine Sim: N/A</span>
               </div>
             )}
+
+            {/* 2. Bayesian Confidence Engine Score & Level */}
+            <div
+              className={`flex items-center gap-1.5 text-xs font-semibold px-3 py-1 rounded-md shadow-xs border ${
+                isAbstained
+                  ? 'bg-amber-100 text-amber-900 border-amber-300'
+                  : confLevel === 'HIGH'
+                  ? 'bg-emerald-100 text-emerald-900 border-emerald-300'
+                  : confLevel === 'MEDIUM'
+                  ? 'bg-blue-100 text-blue-900 border-blue-300'
+                  : 'bg-amber-100 text-amber-900 border-amber-300'
+              }`}
+              title="Bayesian Confidence Engine: P(Answer is Correct | Evidence)"
+            >
+              <Sparkles className="w-3.5 h-3.5 text-[#003E29]" />
+              <span>Confidence: {confPct}%</span>
+              <span className="text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.2 bg-white/70 rounded border border-black/10">
+                {isAbstained ? 'ABSTAINED' : confLevel}
+              </span>
+            </div>
           </div>
         </div>
 
@@ -188,6 +220,10 @@ export default function AnswerWorkspace({
           <span className="text-gray-300">→</span>
           <span className="flex items-center gap-1 bg-emerald-50 text-emerald-900 px-2 py-1 rounded border border-emerald-200">
             <CheckCircle2 className="w-3 h-3 text-emerald-600" /> Citation Validation
+          </span>
+          <span className="text-gray-300">→</span>
+          <span className="flex items-center gap-1 bg-emerald-50 text-emerald-900 px-2 py-1 rounded border border-emerald-200">
+            <CheckCircle2 className="w-3 h-3 text-emerald-600" /> Bayesian Confidence
           </span>
         </div>
       </div>

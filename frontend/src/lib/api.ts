@@ -21,6 +21,11 @@ export interface APIQueryResponse {
   is_abstention: boolean;
   confidence: number;
   cosine_similarity?: number;
+  confidence_score?: number;
+  confidence_percentage?: number;
+  confidence_level?: string;
+  confidence_should_abstain?: boolean;
+  confidence_signals?: Record<string, number>;
   evidence: EvidenceItem[];
   citations: Array<string | Record<string, any>>;
   agents_invoked: Array<string | Record<string, any>>;

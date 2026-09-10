@@ -1,0 +1,19 @@
+# IP-SAKTI Bayesian Confidence Engine Configuration
+# Defines prior probability, classification thresholds, and evidence weights.
+# Note: Initial weights are engineering heuristics. They should eventually be
+# calibrated against a labeled validation dataset using Isotonic Regression or Platt Scaling.
+
+confidence:
+  prior: 0.50
+
+  thresholds:
+    high: 0.90
+    medium: 0.70
+    abstain: 0.60
+
+  evidence_weights:
+    cosine_similarity: 0.35
+    reranker_relevance: 0.30
+    citation_grounding: 0.20
+    answer_consistency: 0.10
+    source_agreement: 0.05

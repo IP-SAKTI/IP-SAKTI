@@ -1,16 +1,16 @@
 """
 ip_sakti.llm.confidence_assessor — Confidence assessment component.
 
-Approved per AGENTS.md §7: Confidence assessment must be computed and returned
-as part of every response object. Score below threshold triggers safe abstention.
+Uses BayesianConfidenceEngine to compute deterministic P(Answer is Correct | Evidence).
+Score below abstention threshold triggers safe abstention.
 """
 
 from __future__ import annotations
 
 import logging
-import math
 from typing import Sequence
 
+from ip_sakti.confidence import BayesianConfidenceEngine
 from ip_sakti.models.query import CitationRecord, ConfidenceResult, EvidenceChunk
 from ip_sakti.utils.config import get_settings
 
@@ -19,17 +19,14 @@ logger = logging.getLogger(__name__)
 
 class ConfidenceAssessor:
     """
-    Computes numerical confidence score and evaluates threshold compliance.
-
-    Safety principle:
-    Good citation coverage alone is NOT sufficient. The retrieved evidence
-    must also be relevant to the user's query.
+    Computes Bayesian confidence score and evaluates safety threshold.
     """
 
     def __init__(
         self,
         threshold: float | None = None,
         min_evidence_chunks: int | None = None,
+        bayesian_engine: BayesianConfidenceEngine | None = None,
     ) -> None:
         """Initialise ConfidenceAssessor using config or explicit overrides."""
 
@@ -48,43 +45,36 @@ class ConfidenceAssessor:
             else int(safety_cfg.get("min_evidence_chunks", 2))
         )
 
-        # Hard safety threshold for retrieval relevance.
-        #
-        # If the retrieved evidence has an insufficient cross-encoder rerank score
-        # (sigmoid < 0.60, corresponding to raw logit < ~0.4), the evidence is
-        # not sufficiently relevant to answer the user's question.
-        #
-        # In that situation the system must abstain even if the LLM
-        # successfully cites the irrelevant evidence.
-        self.retrieval_safety_threshold = 0.60
-
+        self.bayesian_engine = bayesian_engine or BayesianConfidenceEngine(
+            abstain_threshold=self.threshold
+        )
 
     def assess_confidence(
         self,
         evidence: Sequence[EvidenceChunk],
         citations: Sequence[CitationRecord],
+        answer: str = "",
+        conflicting_sources: bool = False,
     ) -> ConfidenceResult:
         """
-        Calculate confidence score and evaluate safety threshold.
+        Calculate confidence score via BayesianConfidenceEngine and evaluate safety threshold.
 
         Parameters
         ----------
         evidence :
             Retrieved and reranked evidence chunks.
-
         citations :
             Citation records produced by CitationValidator.
+        answer :
+            Generated answer text.
+        conflicting_sources :
+            Whether source conflict was detected.
 
         Returns
         -------
         ConfidenceResult
-            Confidence score, coverage metrics, and below_threshold flag.
+            Confidence score, coverage metrics, signals, and below_threshold flag.
         """
-
-        # ------------------------------------------------------------------
-        # 1. Check whether evidence exists
-        # ------------------------------------------------------------------
-
         evidence_count = len(evidence)
 
         if evidence_count == 0:
@@ -95,181 +85,50 @@ class ConfidenceAssessor:
                 avg_rerank_score=0.0,
                 below_threshold=True,
                 reason="No evidence chunks retrieved.",
+                confidence_percentage=0.0,
+                confidence_level="LOW",
+                signals={
+                    "cosine_similarity": 0.0,
+                    "reranker_relevance": 0.0,
+                    "citation_grounding": 0.0,
+                    "answer_consistency": 0.0,
+                    "source_agreement": 0.0,
+                },
             )
 
-        # ------------------------------------------------------------------
-        # 2. Calculate average retrieval relevance
-        # ------------------------------------------------------------------
-
-        rerank_scores = [
-            chunk.rerank_score
-            for chunk in evidence
-            if chunk.rerank_score is not None
-        ]
-
-        if rerank_scores:
-            raw_avg = sum(rerank_scores) / len(rerank_scores)
-            raw_max = max(rerank_scores)
-
-            # Convert cross-encoder logits to a 0–1 value (calibrated with +4.0 shift for ms-marco multi-aspect legal queries).
-            avg_rerank = 1.0 / (
-                1.0
-                + math.exp(
-                    -max(-10.0, min(10.0, raw_avg + 4.0))
-                )
-            )
-            max_rerank = 1.0 / (
-                1.0
-                + math.exp(
-                    -max(-10.0, min(10.0, raw_max + 4.0))
-                )
-            )
-        else:
-            # If rerank scores are unavailable, use a neutral value.
-            raw_max = -10.0
-            avg_rerank = 0.5
-            max_rerank = 0.5
-
-        # ------------------------------------------------------------------
-        # 3. Calculate citation coverage
-        # ------------------------------------------------------------------
-
-        if citations:
-            grounded_count = sum(
-                1
-                for citation in citations
-                if citation.is_grounded
-            )
-
-            citation_coverage = grounded_count / len(citations)
-
-        else:
-            # No [SOURCE_X] citations were found in the answer.
-            citation_coverage = (
-                0.6
-                if evidence_count >= self.min_evidence_chunks
-                else 0.3
-            )
-
-        # ------------------------------------------------------------------
-        # 4. Calculate evidence-count factor
-        # ------------------------------------------------------------------
-
-        count_factor = min(
-            1.0,
-            evidence_count / self.min_evidence_chunks,
+        # Execute Bayesian Confidence Engine
+        bayes_res = self.bayesian_engine.evaluate_confidence(
+            evidence=evidence,
+            citations=citations,
+            answer=answer,
+            conflicting_sources=conflicting_sources,
         )
 
-        # ------------------------------------------------------------------
-        # 5. IMPORTANT SAFETY CHECK & SCORE CALCULATION
-        # ------------------------------------------------------------------
-        #
-        # A response can have perfect citation coverage while still being
-        # based on irrelevant documents.
-        #
-        # If strongest chunk rerank score raw_max < -6.5 (or max_rerank < 0.25),
-        # the retrieval is unsafe and score must be zeroed out.
-        retrieval_unsafe = (
-            raw_max < -6.5
-            or max_rerank < 0.25
-        )
+        citation_coverage = bayes_res.signals.get("citation_grounding", 0.0)
+        avg_rerank = bayes_res.signals.get("reranker_relevance", 0.0)
 
-        if retrieval_unsafe:
-            score = 0.0
-        else:
-            # Relevance dominates score (50% max/avg rerank relevance, 35% citation coverage, 15% count)
-            relevance_weight = 0.5 * (0.6 * max_rerank + 0.4 * avg_rerank)
-            score = float(
-                relevance_weight
-                + 0.35 * citation_coverage
-                + 0.15 * count_factor
-            )
-
-        score = round(
-            max(0.0, min(1.0, score)),
-            4,
-        )
-
-        # ------------------------------------------------------------------
-        # 6. Determine whether the answer is safe
-        # ------------------------------------------------------------------
-
-        below_threshold = (
-            score < self.threshold
-            or evidence_count < self.min_evidence_chunks
-            or retrieval_unsafe
-        )
-
-
-        # ------------------------------------------------------------------
-        # 8. Explain why abstention happened
-        # ------------------------------------------------------------------
-
-        if below_threshold:
-
-            if evidence_count < self.min_evidence_chunks:
-
-                reason = (
-                    f"Insufficient evidence chunks "
-                    f"({evidence_count} < required "
-                    f"{self.min_evidence_chunks})."
-                )
-
-            elif retrieval_unsafe:
-
-                reason = (
-                    f"Retrieved evidence has insufficient relevance "
-                    f"(rerank score {avg_rerank:.4f} < "
-                    f"safety threshold "
-                    f"{self.retrieval_safety_threshold:.2f})."
-                )
-
-            else:
-
-                reason = (
-                    f"Confidence score {score:.2f} is below "
-                    f"threshold {self.threshold:.2f}."
-                )
-
-        else:
-
-            reason = (
-                f"High confidence ({score:.2f} >= "
-                f"{self.threshold:.2f}) with sufficient evidence."
-            )
-
-        # ------------------------------------------------------------------
-        # 9. Logging
-        # ------------------------------------------------------------------
+        below_threshold = bayes_res.should_abstain or (evidence_count < self.min_evidence_chunks and bayes_res.raw_confidence < 0.70)
 
         logger.debug(
-            "Assessed response confidence",
+            "Assessed Bayesian response confidence",
             extra={
-                "score": score,
+                "score": bayes_res.raw_confidence,
+                "confidence_pct": bayes_res.confidence_percentage,
+                "confidence_level": bayes_res.confidence_level,
                 "below_threshold": below_threshold,
-                "retrieval_unsafe": retrieval_unsafe,
-                "avg_rerank_score": avg_rerank,
-                "citation_coverage": citation_coverage,
-                "evidence_count": evidence_count,
-                "reason": reason,
+                "reason": bayes_res.reason,
+                "signals": bayes_res.signals,
             },
         )
 
-        # ------------------------------------------------------------------
-        # 10. Return result
-        # ------------------------------------------------------------------
-
         return ConfidenceResult(
-            score=score,
+            score=bayes_res.raw_confidence,
             evidence_count=evidence_count,
-            citation_coverage=round(
-                citation_coverage,
-                4,
-            ),
-            avg_rerank_score=round(
-                avg_rerank,
-                4,
-            ),
+            citation_coverage=round(citation_coverage, 4),
+            avg_rerank_score=round(avg_rerank, 4),
             below_threshold=below_threshold,
-            reason=reason,
+            reason=bayes_res.reason,
+            confidence_percentage=bayes_res.confidence_percentage,
+            confidence_level=bayes_res.confidence_level,
+            signals=bayes_res.signals,
         )

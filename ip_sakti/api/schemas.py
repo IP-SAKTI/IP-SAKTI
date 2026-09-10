@@ -70,6 +70,21 @@ class APIQueryResponse(BaseModel):
     cosine_similarity: Optional[float] = Field(
         default=None, description="Actual cosine similarity score from FAISS dense vector search."
     )
+    confidence_score: Optional[float] = Field(
+        default=None, description="Bayesian raw confidence probability (0.0 to 1.0)."
+    )
+    confidence_percentage: Optional[float] = Field(
+        default=None, description="Bayesian confidence percentage (0.0 to 100.0%)."
+    )
+    confidence_level: Optional[str] = Field(
+        default=None, description="Confidence level: 'HIGH', 'MEDIUM', or 'LOW'."
+    )
+    confidence_should_abstain: Optional[bool] = Field(
+        default=None, description="True if confidence is below abstention threshold."
+    )
+    confidence_signals: Optional[dict[str, float]] = Field(
+        default_factory=dict, description="Bayesian evidence signals."
+    )
     evidence: list[EvidenceChunk] = Field(
         default_factory=list, description="Source-grounded evidence chunks."
     )

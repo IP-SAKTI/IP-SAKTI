@@ -102,6 +102,7 @@ class AnswerSynthesisService:
         confidence_res = self.confidence_assessor.assess_confidence(
             evidence=evidence,
             citations=citations,
+            answer=raw_answer,
         )
 
         # 4. Safety Threshold Evaluation

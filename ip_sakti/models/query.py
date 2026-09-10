@@ -367,6 +367,18 @@ class ConfidenceResult(BaseModel):
         ...,
         description="Human-readable explanation of the confidence assessment.",
     )
+    confidence_percentage: Optional[float] = Field(
+        default=None,
+        description="Confidence score expressed as a percentage (0.0 to 100.0%).",
+    )
+    confidence_level: Optional[str] = Field(
+        default="MEDIUM",
+        description="Confidence categorical level: 'HIGH', 'MEDIUM', or 'LOW'.",
+    )
+    signals: Optional[dict[str, float]] = Field(
+        default_factory=dict,
+        description="Individual evidence signals contributing to the Bayesian confidence score.",
+    )
 
 
 # =============================================================================

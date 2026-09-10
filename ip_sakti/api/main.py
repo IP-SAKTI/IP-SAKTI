@@ -163,14 +163,21 @@ async def process_query(payload: APIQueryRequest) -> APIQueryResponse:
             f"IsAbstention: {final_resp.is_abstention} | EvidenceCount: {len(final_resp.evidence)}"
         )
 
-        # Extract canonical float confidence score
+        # Extract canonical float confidence score and Bayesian metadata
         conf_score = None
-        if hasattr(final_resp.confidence, "score"):
+        conf_pct = None
+        conf_lvl = None
+        conf_abstain = final_resp.is_abstention
+        conf_signals = {}
+
+        if final_resp.confidence:
             conf_score = float(final_resp.confidence.score)
-        elif isinstance(final_resp.confidence, (int, float)):
-            conf_score = float(final_resp.confidence)
-        elif isinstance(final_resp.confidence, dict) and "score" in final_resp.confidence:
-            conf_score = float(final_resp.confidence["score"])
+            conf_pct = getattr(final_resp.confidence, "confidence_percentage", round(conf_score * 100.0, 2))
+            if conf_pct is None:
+                conf_pct = round(conf_score * 100.0, 2)
+            conf_lvl = getattr(final_resp.confidence, "confidence_level", "MEDIUM") or "MEDIUM"
+            conf_abstain = getattr(final_resp.confidence, "below_threshold", final_resp.is_abstention)
+            conf_signals = getattr(final_resp.confidence, "signals", {}) or {}
 
         # Extract actual vector cosine similarity score from FAISS retrieval evidence
         cosine_sim = None
@@ -185,6 +192,11 @@ async def process_query(payload: APIQueryRequest) -> APIQueryResponse:
             is_abstention=final_resp.is_abstention,
             confidence=conf_score,
             cosine_similarity=cosine_sim,
+            confidence_score=conf_score,
+            confidence_percentage=conf_pct,
+            confidence_level=conf_lvl,
+            confidence_should_abstain=conf_abstain,
+            confidence_signals=conf_signals,
             evidence=final_resp.evidence,
             citations=final_resp.citations,
             agents_invoked=agents_str,
