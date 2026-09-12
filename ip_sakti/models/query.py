@@ -470,6 +470,14 @@ class FinalResponse(BaseModel):
         default="en",
         description="Language in which the answer is returned.",
     )
+    original_query: Optional[str] = Field(
+        default=None,
+        description="Preserved raw user query text in original language.",
+    )
+    normalized_english_query: Optional[str] = Field(
+        default=None,
+        description="Normalized English query text used for RAG processing.",
+    )
     disclaimer: str = Field(
         default=(
             "This response is for informational purposes only and does not "

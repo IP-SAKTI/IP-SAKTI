@@ -48,11 +48,17 @@ class GeminiLLMAdapter:
     ) -> None:
         """Initialise Gemini LLM adapter."""
         cfg = get_settings()
-        self.model_name = (
+        raw_model = (
             model_name
             or os.getenv("GEMINI_MODEL")
             or cfg.get("models", {}).get("llm_model", "gemini-1.5-flash")
         )
+        if any(w in raw_model.lower() for w in ["-tts", "-audio"]):
+            logger.warning(
+                f"GEMINI_MODEL '{raw_model}' is an audio/TTS model not suitable for text generation. Falling back to 'gemini-3.6-flash'."
+            )
+            raw_model = "gemini-3.6-flash"
+        self.model_name = raw_model
         self.api_key = api_key or os.getenv("GEMINI_API_KEY")
 
         self.system_prompt = self._load_system_prompt()

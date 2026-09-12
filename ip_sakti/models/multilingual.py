@@ -189,3 +189,23 @@ class MultilingualContext(BaseModel):
             "if the user supplied one explicitly."
         ),
     )
+
+    @property
+    def detected_language(self) -> str:
+        """Return the ISO 639-1 code of the user's language."""
+        return self.effective_language
+
+    @property
+    def response_language(self) -> str:
+        """Return the ISO 639-1 code for the response language."""
+        return self.effective_language
+
+    @property
+    def original_query(self) -> str:
+        """Return original raw query string."""
+        return self.raw_query
+
+    @property
+    def normalized_english_query(self) -> str:
+        """Return normalized English query string."""
+        return self.query_translation.translated_text

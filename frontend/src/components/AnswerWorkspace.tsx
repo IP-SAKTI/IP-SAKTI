@@ -120,6 +120,26 @@ export default function AnswerWorkspace({
     }
   };
 
+  const getLanguageName = (code?: string): string => {
+    const clean = (code || 'en').toLowerCase().trim();
+    const map: Record<string, string> = {
+      en: 'English',
+      kn: 'Kannada',
+      te: 'Telugu',
+      hi: 'Hindi',
+      mr: 'Marathi',
+      ta: 'Tamil',
+      ml: 'Malayalam',
+      bn: 'Bengali',
+      gu: 'Gujarati',
+      pa: 'Punjabi',
+    };
+    return map[clean] || 'English';
+  };
+
+  const displayLangCode = response.detected_language || (response as any).answer_language || respLang;
+  const displayLangName = getLanguageName(displayLangCode);
+
   return (
     <div className="space-y-6 my-6 relative z-10 font-sans-body">
       {/* 1. RESEARCH QUESTION HEADER */}
@@ -132,7 +152,7 @@ export default function AnswerWorkspace({
           <div className="flex items-center gap-2">
             {/* Detected Language */}
             <span className="bg-[#EEF3E4] text-[#003E29] text-[11px] font-semibold px-2.5 py-0.5 rounded border border-[#C8D7C2]">
-              Language: English / Auto-Detected
+              Language: {displayLangName} / Auto-Detected
             </span>
 
             {/* Invoked Agents / Category */}

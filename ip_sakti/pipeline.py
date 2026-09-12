@@ -192,6 +192,10 @@ class PipelineCoordinator:
             update={
                 "search_mode": q_ctx.search_mode,
                 "live_research_metadata": live_metadata,
+                "detected_language": m_ctx.detected_language,
+                "response_language": m_ctx.response_language,
+                "original_query": m_ctx.original_query,
+                "normalized_english_query": m_ctx.normalized_english_query,
             }
         )
 

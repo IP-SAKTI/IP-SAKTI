@@ -56,20 +56,10 @@ export function proxy(request: NextRequest) {
       (p) => pathname === p || pathname.startsWith(p + '/')
     );
 
-  const isAuthOnly = AUTH_ONLY_PATHS.some(
-    (p) => pathname === p || pathname.startsWith(p + '/')
-  );
-
   // Unauthenticated user trying to access a protected page → /login
   if (isProtected && !isAuthenticated) {
     const loginUrl = new URL('/login', request.url);
     return NextResponse.redirect(loginUrl);
-  }
-
-  // Authenticated user trying to access login/register → dashboard
-  if (isAuthOnly && isAuthenticated) {
-    const dashboardUrl = new URL('/', request.url);
-    return NextResponse.redirect(dashboardUrl);
   }
 
   return NextResponse.next();
@@ -84,3 +74,4 @@ export const config = {
    */
   matcher: ['/((?!_next/static|_next/image|favicon.ico).*)'],
 };
+

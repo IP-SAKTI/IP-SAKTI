@@ -19,8 +19,8 @@ export interface APIQueryResponse {
   query?: string;
   answer: string;
   is_abstention: boolean;
-  confidence: number;
   cosine_similarity?: number;
+  confidence?: number;
   confidence_score?: number;
   confidence_percentage?: number;
   confidence_level?: string;
@@ -32,6 +32,10 @@ export interface APIQueryResponse {
   disclaimer: string;
   search_mode?: string;
   live_research_metadata?: any;
+  detected_language?: string;
+  original_query?: string;
+  normalized_english_query?: string;
+  answer_language?: string;
 }
 
 export interface APIQueryPayload {

@@ -186,6 +186,19 @@ async def process_query(payload: APIQueryRequest) -> APIQueryResponse:
             if faiss_scores:
                 cosine_sim = float(max(faiss_scores))
 
+        logger.info(
+            f"[RETRIEVAL_SCORE_DEBUG] query_id={final_resp.query_id} "
+            f"evidence_count={len(final_resp.evidence)} "
+            f"faiss_scores={[round(ev.faiss_score, 4) for ev in final_resp.evidence if ev.faiss_score is not None]}"
+        )
+        logger.info(f"[CANONICAL_COSINE] raw_cosine_similarity={cosine_sim}")
+        logger.info(
+            f"[CONFIDENCE] raw_cosine={cosine_sim} "
+            f"confidence_score={conf_score} "
+            f"confidence_percentage={conf_pct}% "
+            f"confidence_level={conf_lvl}"
+        )
+
         return APIQueryResponse(
             query_id=final_resp.query_id,
             answer=final_resp.answer,
@@ -203,6 +216,10 @@ async def process_query(payload: APIQueryRequest) -> APIQueryResponse:
             disclaimer=final_resp.disclaimer,
             search_mode=final_resp.search_mode.value if hasattr(final_resp.search_mode, "value") else str(final_resp.search_mode),
             live_research_metadata=final_resp.live_research_metadata,
+            detected_language=getattr(final_resp, "detected_language", "en"),
+            original_query=getattr(final_resp, "original_query", payload.raw_query),
+            normalized_english_query=getattr(final_resp, "normalized_english_query", None),
+            answer_language=getattr(final_resp, "response_language", "en"),
         )
 
     except Exception as exc:

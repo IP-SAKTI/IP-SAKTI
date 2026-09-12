@@ -80,14 +80,15 @@ class BayesianConfidenceEngine:
         weights_cfg = conf_cfg.get("evidence_weights", {})
 
         self.prior = prior if prior is not None else float(conf_cfg.get("prior", 0.50))
-        self.high_threshold = high_threshold if high_threshold is not None else float(thresh_cfg.get("high", 0.90))
-        self.medium_threshold = medium_threshold if medium_threshold is not None else float(thresh_cfg.get("medium", 0.70))
-        self.abstain_threshold = abstain_threshold if abstain_threshold is not None else float(thresh_cfg.get("abstain", 0.60))
+        self.max_confidence = float(conf_cfg.get("max_confidence", 0.95))
+        self.high_threshold = high_threshold if high_threshold is not None else float(thresh_cfg.get("high", 0.85))
+        self.medium_threshold = medium_threshold if medium_threshold is not None else float(thresh_cfg.get("medium", 0.65))
+        self.abstain_threshold = abstain_threshold if abstain_threshold is not None else float(thresh_cfg.get("abstain", 0.50))
 
         self.weights = {
-            "cosine_similarity": float(weights_cfg.get("cosine_similarity", 0.35)),
+            "cosine_similarity": float(weights_cfg.get("cosine_similarity", 0.30)),
             "reranker_relevance": float(weights_cfg.get("reranker_relevance", 0.30)),
-            "citation_grounding": float(weights_cfg.get("citation_grounding", 0.20)),
+            "citation_grounding": float(weights_cfg.get("citation_grounding", 0.25)),
             "answer_consistency": float(weights_cfg.get("answer_consistency", 0.10)),
             "source_agreement": float(weights_cfg.get("source_agreement", 0.05)),
         }
@@ -150,7 +151,7 @@ class BayesianConfidenceEngine:
             return float(grounded / len(citations))
         
         # Safe fallback if answer has no explicit citation tags
-        return 1.0 if len(evidence) >= 2 else 0.50
+        return 0.60 if len(evidence) >= 2 else 0.40
 
     def calculate_answer_consistency(
         self,
@@ -272,11 +273,11 @@ class BayesianConfidenceEngine:
         prior_clamped = max(eps, min(1.0 - eps, self.prior))
         l_0 = math.log(prior_clamped / (1.0 - prior_clamped))
 
-        # Log-likelihood ratio updates from signals
+        # Log-likelihood ratio updates from signals (clamped to realistic evidence bounds to prevent saturation)
         delta_l = 0.0
         for sig_name, sig_val in signals.items():
             w = self.weights.get(sig_name, 0.20)
-            val_clamped = max(eps, min(1.0 - eps, sig_val))
+            val_clamped = max(0.12, min(0.88, sig_val))
             # Log-odds contribution relative to neutral 0.5 baseline
             llr = math.log(val_clamped / (1.0 - val_clamped))
             delta_l += w * llr
@@ -291,9 +292,9 @@ class BayesianConfidenceEngine:
 
         l_posterior = l_0 + delta_l
 
-        # Convert back from log-odds to probability P(H|E)
+        # Convert back from log-odds to probability P(H|E) and apply max_confidence ceiling
         posterior_prob = 1.0 / (1.0 + math.exp(-l_posterior))
-        raw_confidence = round(max(0.0, min(1.0, posterior_prob)), 4)
+        raw_confidence = round(max(0.0, min(self.max_confidence, posterior_prob)), 4)
         confidence_pct = round(raw_confidence * 100.0, 2)
 
         # 3. Determine Confidence Level & Abstention Status

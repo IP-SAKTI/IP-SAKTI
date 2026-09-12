@@ -37,7 +37,7 @@ models:
   # LLM for answer generation (Gemini via API)
   # Model name is also controllable via GEMINI_MODEL env var
   llm_provider: "gemini"
-  llm_model: "gemini-1.5-flash"
+  llm_model: "gemini-3.6-flash"
 
   # Language detection library
   lang_detect_library: "langdetect"
