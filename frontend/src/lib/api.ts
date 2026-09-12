@@ -252,3 +252,20 @@ export async function transcribeAudio(audioBlob: Blob, language?: string): Promi
   return res.json();
 }
 
+export async function fetchTTSAudioAPI(text: string, language: string): Promise<Blob> {
+  const res = await fetch(`${API_BASE_URL}/tts`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ text, language }),
+  });
+
+  if (!res.ok) {
+    const errText = await res.text().catch(() => 'TTS audio request failed');
+    throw new Error(errText || `TTS Server error ${res.status}`);
+  }
+
+  return res.blob();
+}
+

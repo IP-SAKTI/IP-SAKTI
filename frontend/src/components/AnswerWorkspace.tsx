@@ -19,7 +19,7 @@ import {
   Square,
 } from 'lucide-react';
 import { APIQueryResponse, getDocumentUrl } from '@/lib/api';
-import { speakText, stopSpeaking } from '@/lib/voice';
+import { speakText, stopSpeaking, validateScriptForLanguage } from '@/lib/voice';
 
 interface AnswerWorkspaceProps {
   query: string;
@@ -32,8 +32,8 @@ interface AnswerWorkspaceProps {
  */
 function detectTextLanguage(text: string, defaultLang?: string): string {
   if (!text) return defaultLang || 'en';
-  if (/[\u0c00-\u0c7f]/.test(text)) return 'te';
   if (/[\u0c80-\u0cff]/.test(text)) return 'kn';
+  if (/[\u0c00-\u0c7f]/.test(text)) return 'te';
   if (/[\u0900-\u097f]/.test(text)) return 'hi';
   return defaultLang || 'en';
 }
@@ -44,7 +44,6 @@ export default function AnswerWorkspace({
   onSaveResearch,
 }: AnswerWorkspaceProps) {
   const [isSpeakingState, setIsSpeakingState] = useState<boolean>(false);
-  const lastSpokenIdRef = useRef<string>('');
 
   // Safely extract Cosine Similarity score from backend vector retrieval
   let rawCosineSim: number | null = null;
@@ -80,39 +79,53 @@ export default function AnswerWorkspace({
         .slice(0, 3)
     : [];
 
-  const respLang = (response as any).language || detectTextLanguage(response.answer || '', 'en');
-  const answerId = response.answer ? `${query}_${response.answer.slice(0, 50)}` : '';
-
-  // Automatic Speech Synthesis on NEW Answer (Runs ONCE per unique answer)
+  // Speech cleanup on unmount ONLY (no auto-speak on new answer)
   useEffect(() => {
-    if (answerId && lastSpokenIdRef.current !== answerId) {
-      lastSpokenIdRef.current = answerId;
-      const targetLang = detectTextLanguage(response.answer || '', respLang);
-
-      speakText({
-        text: response.answer || '',
-        lang: targetLang,
-        onStart: () => setIsSpeakingState(true),
-        onEnd: () => setIsSpeakingState(false),
-        onError: () => setIsSpeakingState(false),
-      });
-    }
-
     return () => {
       stopSpeaking();
       setIsSpeakingState(false);
     };
-  }, [answerId, response.answer, respLang, query]);
+  }, []);
 
   const toggleSpeech = () => {
     if (isSpeakingState) {
       stopSpeaking();
       setIsSpeakingState(false);
     } else {
-      const targetLang = detectTextLanguage(response.answer || '', respLang);
+      const finalDisplayedAnswer = response.answer || '';
+      const rawLang = response.answer_language || response.detected_language || (response as any).language;
+      const answerLanguage = (rawLang || detectTextLanguage(finalDisplayedAnswer, 'en')).toLowerCase().trim();
+      const localeMap: Record<string, string> = {
+        en: 'en-IN',
+        hi: 'hi-IN',
+        te: 'te-IN',
+        kn: 'kn-IN',
+      };
+      const speechLocale = localeMap[answerLanguage] || 'en-IN';
+
+      // Section 15: Verify exact text equality
+      console.log('[SPEAK_EQUALITY]', finalDisplayedAnswer === response.answer);
+
+      // Section 2: Add runtime debugging before speech
+      console.log('[SPEAK_RUNTIME_DEBUG]', {
+        textSource: 'final_displayed_answer',
+        text: finalDisplayedAnswer,
+        textLength: finalDisplayedAnswer?.length,
+        answerLanguage: answerLanguage,
+        speechLocale: speechLocale,
+      });
+
+      // Section 9 Safety Check: Verify script alignment
+      if (!validateScriptForLanguage(finalDisplayedAnswer, answerLanguage)) {
+        console.warn(
+          `[SPEAK_LANGUAGE_MISMATCH] displayed_answer_language=${answerLanguage} but text contains no matching script characters.`
+        );
+        return;
+      }
+
       speakText({
-        text: response.answer || '',
-        lang: targetLang,
+        text: finalDisplayedAnswer,
+        lang: answerLanguage,
         onStart: () => setIsSpeakingState(true),
         onEnd: () => setIsSpeakingState(false),
         onError: () => setIsSpeakingState(false),
@@ -137,7 +150,7 @@ export default function AnswerWorkspace({
     return map[clean] || 'English';
   };
 
-  const displayLangCode = response.detected_language || (response as any).answer_language || respLang;
+  const displayLangCode = response.detected_language || response.answer_language || detectTextLanguage(response.answer || '', 'en');
   const displayLangName = getLanguageName(displayLangCode);
 
   return (

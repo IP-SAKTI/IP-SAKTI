@@ -33,12 +33,14 @@ class IPSAKTIService:
         db_manager: Any = None,
     ) -> None:
         """Initialise service with optional coordinator."""
+        self.db = db_manager
+        self.db_manager = db_manager
         self.supabase_client = SupabaseClient()
 
         if coordinator is not None:
             self.coordinator = coordinator
         else:
-            abstention_hnd = SafeAbstentionHandler()
+            abstention_hnd = SafeAbstentionHandler(db_manager=db_manager)
             synthesis = AnswerSynthesisService(abstention_handler=abstention_hnd)
             self.coordinator = PipelineCoordinator(synthesis_service=synthesis)
         logger.debug("IPSAKTIService initialised")
@@ -63,6 +65,20 @@ class IPSAKTIService:
         )
 
         now_iso = datetime.now(timezone.utc).isoformat()
+
+        if self.db:
+            try:
+                conn = self.db.connection
+                with conn:
+                    conn.execute(
+                        """
+                        INSERT OR REPLACE INTO queries (query_id, raw_query, detected_lang, is_abstention, created_at)
+                        VALUES (?, ?, ?, ?, ?)
+                        """,
+                        (str(request.query_id), request.raw_query, request.user_language, 0, now_iso),
+                    )
+            except Exception as exc:
+                logger.debug(f"Local SQLite query log failed: {exc}")
 
         # Log query metadata to Supabase if configured (optional telemetry)
         if self.supabase_client.is_configured:
@@ -89,6 +105,25 @@ class IPSAKTIService:
 
         # Execute full pipeline
         response = self.coordinator.execute(request)
+
+        if response.is_abstention and self.db:
+            try:
+                conn = self.db.connection
+                with conn:
+                    conn.execute(
+                        """
+                        INSERT INTO escalations (query_id, agent_type, reason, escalated_at)
+                        VALUES (?, ?, ?, ?)
+                        """,
+                        (
+                            str(request.query_id),
+                            "general",
+                            response.abstention_reason or "Low confidence / zero evidence safe abstention",
+                            now_iso,
+                        ),
+                    )
+            except Exception as exc:
+                logger.debug(f"Local SQLite escalation log failed: {exc}")
 
         if self.supabase_client.is_configured:
             try:

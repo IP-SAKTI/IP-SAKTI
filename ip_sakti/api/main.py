@@ -230,6 +230,70 @@ async def process_query(payload: APIQueryRequest) -> APIQueryResponse:
         )
 
 
+from pydantic import BaseModel
+
+
+class TTSRequestPayload(BaseModel):
+    text: str
+    language: str = "en"
+
+
+@app.post("/tts", tags=["Speech Synthesis"])
+async def text_to_speech(payload: TTSRequestPayload) -> Response:
+    """
+    Generate high-clarity native audio (MP3) for research answers.
+    Supports Kannada ('kn'), Telugu ('te'), Hindi ('hi'), and Indian English ('en').
+    """
+    raw_text = payload.text or ""
+    if not raw_text.strip():
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Empty text for TTS")
+
+    import re
+    cleaned = re.sub(r'\[\d+\]', '', raw_text)
+    cleaned = re.sub(r'\[SOURCE_\d+\]', '', cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r'[#*`_~]', '', cleaned)
+    cleaned = re.sub(r'↗', '', cleaned)
+    cleaned = re.sub(r'http[s]?://\S+', '', cleaned)
+    cleaned = re.sub(r'\s+', ' ', cleaned).strip()
+
+    if not cleaned:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No readable text for TTS")
+
+    if len(cleaned) > 1200:
+        cleaned = cleaned[:1200] + "."
+
+    lang = (payload.language or "en").lower().strip()
+    if lang in ["kn", "kn-in"]:
+        target_lang = "kn"
+        tld = "com"
+    elif lang in ["te", "te-in"]:
+        target_lang = "te"
+        tld = "com"
+    elif lang in ["hi", "hi-in"]:
+        target_lang = "hi"
+        tld = "com"
+    else:
+        target_lang = "en"
+        tld = "co.in"
+
+    logger.info(f"[TTS_ENDPOINT_DEBUG] text_len={len(cleaned)} input_lang={lang} target_lang={target_lang} preview='{cleaned[:50]}'")
+
+    try:
+        import io
+        from gtts import gTTS
+        fp = io.BytesIO()
+        tts = gTTS(text=cleaned, lang=target_lang, tld=tld)
+        tts.write_to_fp(fp)
+        audio_bytes = fp.getvalue()
+        return Response(content=audio_bytes, media_type="audio/mpeg")
+    except Exception as exc:
+        logger.error(f"gTTS audio generation failed: {exc}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Speech synthesis error: {exc}",
+        )
+
+
 # ---------------------------------------------------------------------------
 # Authentication endpoints
 # ---------------------------------------------------------------------------

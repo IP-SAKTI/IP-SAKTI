@@ -116,6 +116,7 @@ CREATE TABLE IF NOT EXISTS messages (
 _CREATE_USER_SESSIONS_TABLE = """
 CREATE TABLE IF NOT EXISTS user_sessions (
     id              TEXT        PRIMARY KEY,
+    token           TEXT,
     user_id         TEXT        NOT NULL,
     created_at      TEXT        NOT NULL,
     expires_at      TEXT        NOT NULL,
