@@ -157,7 +157,7 @@ class SupabaseClient:
         url = f"{self.url}/auth/v1/otp"
         payload: Dict[str, Any] = {
             "email": email,
-            "create_user": True,
+            "create_user": False,
         }
         headers = self._get_headers()
         # Supabase reads redirect_to from query parameter, not body
