@@ -9,7 +9,7 @@ Model name is read from config/settings.yaml models.cross_encoder_model.
 from __future__ import annotations
 
 import logging
-from typing import Sequence
+from typing import Sequence, Any
 
 import os
 from pathlib import Path
@@ -19,8 +19,6 @@ if "HF_HOME" in os.environ and not Path(os.environ["HF_HOME"].split(":")[0] + ":
     os.environ["HF_HOME"] = str(Path.home() / ".cache" / "huggingface")
 if "SENTENCE_TRANSFORMERS_HOME" in os.environ and not Path(os.environ["SENTENCE_TRANSFORMERS_HOME"].split(":")[0] + ":\\").exists():
     os.environ["SENTENCE_TRANSFORMERS_HOME"] = str(Path.home() / ".cache" / "torch" / "sentence_transformers")
-
-from sentence_transformers import CrossEncoder
 
 from ip_sakti.retrieval.exceptions import RetrievalError
 from ip_sakti.retrieval.fusion import FusedCandidate
@@ -51,16 +49,17 @@ class CrossEncoderReranker:
                 "cross-encoder/ms-marco-MiniLM-L-6-v2",
             )
 
-        self._model: CrossEncoder | None = None
+        self._model: Any | None = None
         logger.debug(
             "CrossEncoderReranker initialised",
             extra={"model_name": self.model_name},
         )
 
-    def _get_model(self) -> CrossEncoder:
+    def _get_model(self) -> Any:
         """Lazy load the CrossEncoder model on first use."""
         if self._model is None:
             try:
+                from sentence_transformers import CrossEncoder
                 logger.info(
                     "Loading CrossEncoder model",
                     extra={"model_name": self.model_name},

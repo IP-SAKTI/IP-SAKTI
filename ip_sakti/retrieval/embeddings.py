@@ -12,7 +12,7 @@ Model name is read from config/settings.yaml models.embedding_model.
 from __future__ import annotations
 
 import logging
-from typing import Sequence
+from typing import Sequence, Any
 
 import numpy as np
 import os
@@ -23,8 +23,6 @@ if "HF_HOME" in os.environ and not Path(os.environ["HF_HOME"].split(":")[0] + ":
     os.environ["HF_HOME"] = str(Path.home() / ".cache" / "huggingface")
 if "SENTENCE_TRANSFORMERS_HOME" in os.environ and not Path(os.environ["SENTENCE_TRANSFORMERS_HOME"].split(":")[0] + ":\\").exists():
     os.environ["SENTENCE_TRANSFORMERS_HOME"] = str(Path.home() / ".cache" / "torch" / "sentence_transformers")
-
-from sentence_transformers import SentenceTransformer
 
 from ip_sakti.retrieval.exceptions import RetrievalError
 from ip_sakti.utils.config import get_settings
@@ -54,16 +52,17 @@ class EmbeddingGenerator:
                 "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2",
             )
 
-        self._model: SentenceTransformer | None = None
+        self._model: Any | None = None
         logger.debug(
             "EmbeddingGenerator initialised",
             extra={"model_name": self.model_name},
         )
 
-    def _get_model(self) -> SentenceTransformer:
+    def _get_model(self) -> Any:
         """Lazy load the SentenceTransformer model on first use."""
         if self._model is None:
             try:
+                from sentence_transformers import SentenceTransformer
                 logger.info(
                     "Loading SentenceTransformer model",
                     extra={"model_name": self.model_name},
