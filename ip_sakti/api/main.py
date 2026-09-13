@@ -23,7 +23,6 @@ from ip_sakti.api.schemas import (
     MagicLinkResponse,
     AuthResponse,
     ProfileUpdateRequest,
-    ProfileResponse,
     ContactRequest,
     ContactResponse,
     SaveHistoryRequest,
@@ -70,7 +69,6 @@ def get_chat_storage_service() -> ChatStorageService:
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """Lifespan event handler for FastAPI app initialization."""
     logger.info("Initializing IP-SAKTI Sahayak FastAPI application...")
-    get_service()
     yield
     logger.info("Shutting down IP-SAKTI Sahayak FastAPI application...")
 
@@ -274,9 +272,6 @@ async def text_to_speech(payload: TTSRequestPayload) -> Response:
     elif lang in ["hi", "hi-in"]:
         target_lang = "hi"
         tld = "com"
-    elif lang in ["ml", "ml-in"]:
-        target_lang = "ml"
-        tld = "com"
     else:
         target_lang = "en"
         tld = "co.in"
@@ -303,22 +298,9 @@ async def text_to_speech(payload: TTSRequestPayload) -> Response:
 # Authentication endpoints
 # ---------------------------------------------------------------------------
 
-# ---------------------------------------------------------------------------
-# Authentication endpoints
-# ---------------------------------------------------------------------------
-
-def get_authenticated_user(authorization: Optional[str] = Header(default=None)) -> Optional[dict]:
-    """Extract and verify session token from Authorization header using Supabase."""
-    if not authorization or not authorization.startswith("Bearer "):
-        return None
-    token = authorization.split("Bearer ")[1].strip()
-    auth_srv = get_auth_service()
-    return auth_srv.verify_session(token)
-
-
 @app.post("/auth/register", response_model=AuthResponse, tags=["Authentication"])
 async def register(payload: RegisterRequest) -> AuthResponse:
-    """Register new user account in Supabase Auth & public.profiles."""
+    """Register new user account."""
     auth_srv = get_auth_service()
     user_data, error_msg = auth_srv.register_user(
         name=payload.name,
@@ -327,11 +309,8 @@ async def register(payload: RegisterRequest) -> AuthResponse:
         confirm_password=payload.confirm_password or payload.password,
         terms_accepted=payload.terms_accepted,
     )
-    if error_msg or not user_data:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=error_msg or "Registration failed.",
-        )
+    if error_msg:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=error_msg)
 
     token = user_data.get("access_token") or ""
     return AuthResponse(user=user_data, token=token, message="Registration successful.")
@@ -353,7 +332,11 @@ async def login(payload: LoginRequest) -> AuthResponse:
 async def send_magic_link(payload: MagicLinkRequest) -> MagicLinkResponse:
     """
     Send a Supabase Magic Link OTP email for passwordless authentication.
-    Only registered users may request a magic link.
+
+    The user receives an email with a one-time link.  Clicking that link
+    redirects them to ``payload.redirect_to`` (default: ``/auth/callback``)
+    with ``#access_token=...&type=magiclink`` in the URL hash.
+    The frontend callback page exchanges these tokens via ``GET /auth/verify``.
     """
     auth_srv = get_auth_service()
     ok, error_msg = auth_srv.send_magic_link(
@@ -371,57 +354,16 @@ async def send_magic_link(payload: MagicLinkRequest) -> MagicLinkResponse:
 @app.get("/auth/verify", response_model=AuthResponse, tags=["Authentication"])
 async def verify_token(authorization: Optional[str] = Header(default=None)) -> AuthResponse:
     """Verify Supabase Auth session token."""
-    user_data = get_authenticated_user(authorization)
-    if not user_data:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or expired session token")
-
-    token = authorization.split("Bearer ")[1].strip()
-    return AuthResponse(user=user_data, token=token, message="Session valid.")
-
-
-@app.get("/auth/profile", response_model=ProfileResponse, tags=["Authentication"])
-async def get_profile(authorization: Optional[str] = Header(default=None)) -> ProfileResponse:
-    """Retrieve user profile from Supabase Auth & public.profiles."""
-    user = get_authenticated_user(authorization)
-    if not user:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or expired session token")
-
-    return ProfileResponse(
-        id=user["id"],
-        fullName=user.get("name") or "",
-        email=user.get("email") or "",
-        organization=user.get("organization") or "IP-SAKTI",
-        role=user.get("role") or "Researcher",
-        bio=user.get("bio") or "",
-        avatarUrl=user.get("avatarUrl") or "",
-    )
-
-
-@app.put("/auth/profile", response_model=ProfileResponse, tags=["Authentication"])
-async def update_profile(
-    payload: ProfileUpdateRequest,
-    authorization: Optional[str] = Header(default=None),
-) -> ProfileResponse:
-    """Update user profile in Supabase Auth user_metadata and public.profiles table."""
-    user = get_authenticated_user(authorization)
-    if not user:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or expired session token")
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="No token provided")
 
     token = authorization.split("Bearer ")[1].strip()
     auth_srv = get_auth_service()
-    updated_prof, err = auth_srv.update_profile(token, payload.model_dump(exclude_unset=True))
-    if err or not updated_prof:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=err or "Profile update failed")
+    user_data = auth_srv.verify_session(token)
+    if not user_data:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or expired session token")
 
-    return ProfileResponse(
-        id=updated_prof["id"],
-        fullName=updated_prof.get("fullName") or "",
-        email=updated_prof.get("email") or user.get("email") or "",
-        organization=updated_prof.get("organization") or "IP-SAKTI",
-        role=updated_prof.get("role") or "Researcher",
-        bio=updated_prof.get("bio") or "",
-        avatarUrl=updated_prof.get("avatarUrl") or "",
-    )
+    return AuthResponse(user=user_data, token=token, message="Session valid.")
 
 
 @app.post("/auth/logout", tags=["Authentication"])
@@ -439,69 +381,37 @@ async def logout_user(authorization: Optional[str] = Header(default=None)):
 # ---------------------------------------------------------------------------
 
 @app.get("/history", tags=["Research History"])
-async def get_history(
-    user_id: Optional[str] = Query(default=None),
-    limit: int = 50,
-    authorization: Optional[str] = Header(default=None),
-):
-    """Retrieve user research history strictly scoped to authenticated user."""
-    auth_user = get_authenticated_user(authorization)
-    effective_user_id = auth_user["id"] if auth_user else user_id
-
-    # Do not leak all conversations if unauthenticated and no user_id
-    if not effective_user_id:
-        return []
-
-    # Prevent cross-user spoofing if caller passed a different user_id
-    if auth_user and user_id and user_id != auth_user["id"]:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied to requested user history")
-
+async def get_history(user_id: Optional[str] = Query(default=None), limit: int = 50):
+    """Retrieve user research history."""
     chat_srv = get_chat_storage_service()
-    return chat_srv.list_conversations(user_id=effective_user_id, limit=limit)
+    return chat_srv.list_conversations(user_id=user_id, limit=limit)
 
 
 @app.get("/history/{conversation_id}", tags=["Research History"])
-async def get_history_detail(
-    conversation_id: str,
-    user_id: Optional[str] = Query(default=None),
-    authorization: Optional[str] = Header(default=None),
-):
+async def get_history_detail(conversation_id: str, user_id: Optional[str] = Query(default=None)):
     """Retrieve detailed message history for a single conversation."""
-    auth_user = get_authenticated_user(authorization)
-    effective_user_id = auth_user["id"] if auth_user else user_id
-
     chat_srv = get_chat_storage_service()
-    conv = chat_srv.get_conversation(conversation_id=conversation_id, user_id=effective_user_id)
+    conv = chat_srv.get_conversation(conversation_id=conversation_id, user_id=user_id)
     if not conv:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Conversation not found or access denied")
-
-    # Enforce ownership: user can only view their own conversation
-    if conv.get("user_id"):
-        if not effective_user_id or (conv.get("user_id") != effective_user_id and str(conv.get("user_id")) != effective_user_id):
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
-
+    if user_id and conv.get("user_id") and conv.get("user_id") != user_id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
     return conv
 
 
 @app.post("/history", tags=["Research History"])
-async def save_history(
-    payload: SaveHistoryRequest,
-    authorization: Optional[str] = Header(default=None),
-):
+async def save_history(payload: SaveHistoryRequest):
     """Save or update a research query in history."""
-    auth_user = get_authenticated_user(authorization)
-    effective_user_id = auth_user["id"] if auth_user else payload.user_id
-
     chat_srv = get_chat_storage_service()
     conv = chat_srv.create_conversation(
-        title=payload.title, conversation_id=payload.id, user_id=effective_user_id
+        title=payload.title, conversation_id=payload.id, user_id=payload.user_id
     )
     if payload.query:
         chat_srv.add_message(
             conversation_id=payload.id,
             role="user",
             content=payload.query,
-            user_id=effective_user_id,
+            user_id=payload.user_id,
         )
     if payload.response:
         content_text = payload.response.get("answer") if isinstance(payload.response, dict) else str(payload.response)
@@ -510,32 +420,20 @@ async def save_history(
             role="assistant",
             content=content_text,
             metadata={"response": payload.response},
-            user_id=effective_user_id,
+            user_id=payload.user_id,
         )
     return {"status": "success", "conversation": conv}
 
 
 @app.delete("/history/{conversation_id}", tags=["Research History"])
-async def delete_history(
-    conversation_id: str,
-    user_id: Optional[str] = Query(default=None),
-    authorization: Optional[str] = Header(default=None),
-):
+async def delete_history(conversation_id: str, user_id: Optional[str] = Query(default=None)):
     """Delete a research query record from history."""
-    auth_user = get_authenticated_user(authorization)
-    effective_user_id = auth_user["id"] if auth_user else user_id
-
     chat_srv = get_chat_storage_service()
-    conv = chat_srv.get_conversation(conversation_id=conversation_id, user_id=effective_user_id)
-    if not conv:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Conversation not found")
-
-    if conv.get("user_id"):
-        if not effective_user_id or (conv.get("user_id") != effective_user_id and str(conv.get("user_id")) != effective_user_id):
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
-
+    conv = chat_srv.get_conversation(conversation_id=conversation_id, user_id=user_id)
+    if user_id and conv and conv.get("user_id") and conv.get("user_id") != user_id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
     if hasattr(chat_srv, "delete_conversation"):
-        chat_srv.delete_conversation(conversation_id=conversation_id, user_id=effective_user_id)
+        chat_srv.delete_conversation(conversation_id=conversation_id, user_id=user_id)
     return {"status": "success", "id": conversation_id}
 
 
@@ -544,51 +442,34 @@ async def delete_history(
 # ---------------------------------------------------------------------------
 
 @app.post("/contact", response_model=ContactResponse, tags=["Support"])
-async def contact_support(
-    payload: ContactRequest,
-    authorization: Optional[str] = Header(default=None),
-) -> ContactResponse:
-    """Record contact support submission to Supabase PostgreSQL or local storage."""
-    auth_user = get_authenticated_user(authorization)
-    effective_user_id = auth_user["id"] if auth_user else payload.user_id
-
+async def contact_support(payload: ContactRequest) -> ContactResponse:
+    """Record contact support submission to Supabase PostgreSQL."""
     logger.info(f"Support message from {payload.name} ({payload.email}) regarding '{payload.subject}'")
-
+    
     from ip_sakti.utils.supabase_client import SupabaseClient
-    from ip_sakti.utils.supabase_chat_storage import sanitize_uuid
     from uuid import uuid4
     from datetime import datetime, timezone
-
-    clean_uid = sanitize_uuid(effective_user_id) if effective_user_id else None
-
+    
     sp_client = SupabaseClient()
-    persisted_to_supabase = False
     if sp_client.is_configured:
         try:
-            inquiry_data = {
-                "id": str(uuid4()),
-                "name": payload.name.strip(),
-                "email": payload.email.strip().lower(),
-                "subject": payload.subject,
-                "message": payload.message.strip(),
-                "created_at": datetime.now(timezone.utc).isoformat(),
-            }
-            if clean_uid:
-                inquiry_data["user_id"] = clean_uid
-
             sp_client.insert(
                 table="support_inquiries",
-                data=inquiry_data,
+                data={
+                    "id": str(uuid4()),
+                    "name": payload.name,
+                    "email": payload.email,
+                    "subject": payload.subject,
+                    "message": payload.message,
+                    "user_id": payload.user_id,
+                    "created_at": datetime.now(timezone.utc).isoformat(),
+                },
                 use_service_role=True if sp_client.service_role_key else False,
             )
-            persisted_to_supabase = True
         except Exception as exc:
-            logger.warning(f"Could not persist support inquiry to Supabase support_inquiries: {exc}")
+            logger.warning(f"Could not persist support inquiry to Supabase: {exc}")
 
-    return ContactResponse(
-        status="success",
-        message="Your inquiry has been received. Our team will contact you shortly."
-    )
+    return ContactResponse(status="success", message="Your inquiry has been received. Our team will contact you shortly.")
 
 
 
