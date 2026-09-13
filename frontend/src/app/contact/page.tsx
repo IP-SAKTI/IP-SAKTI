@@ -21,7 +21,7 @@ import Sidebar from '@/components/Sidebar';
 import HeaderUserProfile from '@/components/HeaderUserProfile';
 import BotanicalBackground from '@/components/BotanicalBackground';
 import { useAuth } from '@/context/AuthContext';
-import { Conversation, listConversations } from '@/lib/api';
+import { Conversation, listConversations, submitContactInquiryAPI } from '@/lib/api';
 
 export default function ContactPage() {
   const { user, profile } = useAuth();
@@ -107,31 +107,36 @@ export default function ContactPage() {
     return isValid;
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!validateForm()) return;
 
     setIsSubmitting(true);
 
-    // Prepare payload for future API/Supabase submission
-    const _payload = {
-      user_id: user?.id || 'anonymous',
-      name: name.trim(),
-      email: email.trim(),
-      subject: subject,
-      message: message.trim(),
-      created_at: new Date().toISOString(),
-    };
+    try {
+      const res = await submitContactInquiryAPI({
+        name: name.trim(),
+        email: email.trim(),
+        subject: subject,
+        message: message.trim(),
+        user_id: user?.id,
+      });
 
-    setTimeout(() => {
-      setIsSubmitting(false);
       setToastMessage({
         type: 'success',
-        text: 'Message ready to send. Your support request has been validated successfully. Backend submission will be connected shortly.',
+        text: res.message || 'Your inquiry has been received. Our team will contact you shortly.',
       });
       setSubject('');
       setMessage('');
-    }, 400);
+    } catch (err) {
+      console.warn('Contact inquiry submission failed:', err);
+      setToastMessage({
+        type: 'error',
+        text: 'Failed to send your message. Please check your connection and try again.',
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const supportAreas = [

@@ -272,11 +272,16 @@ class SupabaseChatStorageService:
     ) -> List[Dict[str, Any]]:
         """
         Fetch most recently updated conversations for the active user.
+        Always scoped to user_id to prevent leaking other users' conversations.
         """
+        if not user_id:
+            return []
+
+        clean_uid = sanitize_uuid(user_id)
+
         if not self.is_supabase_enabled:
             convs = list(self._mem_convs.values())
-            if user_id:
-                convs = [c for c in convs if c.get("user_id") == user_id]
+            convs = [c for c in convs if c.get("user_id") == user_id or (clean_uid and c.get("user_id") == clean_uid)]
             convs.sort(key=lambda x: x.get("updated_at", ""), reverse=True)
             return convs[:limit]
 
@@ -286,10 +291,9 @@ class SupabaseChatStorageService:
                 "limit": str(limit),
                 "select": "id,user_id,title,created_at,updated_at",
             }
-            clean_uid = sanitize_uuid(user_id)
             if clean_uid:
                 params["user_id"] = f"eq.{clean_uid}"
-            elif user_id:
+            else:
                 params["user_id"] = f"eq.{user_id}"
 
             rows = self.client.select(
@@ -298,8 +302,7 @@ class SupabaseChatStorageService:
                 use_service_role=True if self.client.service_role_key else False,
             )
 
-            if user_id:
-                rows = [r for r in rows if r.get("user_id") == user_id or (clean_uid and r.get("user_id") == clean_uid)]
+            rows = [r for r in rows if r.get("user_id") == user_id or (clean_uid and r.get("user_id") == clean_uid)]
 
             return [
                 {
@@ -314,8 +317,7 @@ class SupabaseChatStorageService:
         except Exception as exc:
             logger.error(f"Error listing conversations from Supabase: {exc}")
             convs = list(self._mem_convs.values())
-            if user_id:
-                convs = [c for c in convs if c.get("user_id") == user_id]
+            convs = [c for c in convs if c.get("user_id") == user_id or (clean_uid and c.get("user_id") == clean_uid)]
             convs.sort(key=lambda x: x.get("updated_at", ""), reverse=True)
             return convs[:limit]
 
@@ -328,7 +330,7 @@ class SupabaseChatStorageService:
         user_id: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
-        Save a message to a conversation.
+        Save a message to a conversation. Inherits user_id from parent conversation if not explicitly provided.
         """
         msg_id = str(uuid4())
         now_iso = datetime.now(timezone.utc).isoformat()
@@ -357,12 +359,15 @@ class SupabaseChatStorageService:
         try:
             conv_rows = self.client.select(
                 table="conversations",
-                params={"id": f"eq.{conversation_id}", "select": "id,title"},
+                params={"id": f"eq.{conversation_id}", "select": "id,title,user_id"},
                 use_service_role=True if self.client.service_role_key else False,
             )
 
             current_title = "New Chat"
             clean_uid = sanitize_uuid(user_id)
+            if not clean_uid and conv_rows and conv_rows[0].get("user_id"):
+                clean_uid = sanitize_uuid(conv_rows[0].get("user_id"))
+
             if not conv_rows:
                 conv_data = {
                     "id": conversation_id,
@@ -408,6 +413,16 @@ class SupabaseChatStorageService:
                     data=msg_payload,
                     use_service_role=True if self.client.service_role_key else False,
                 )
+            except Exception as insert_exc:
+                if ("23503" in str(insert_exc) or "foreign key" in str(insert_exc).lower()) and "user_id" in msg_payload:
+                    msg_payload.pop("user_id", None)
+                    self.client.insert(
+                        table="messages",
+                        data=msg_payload,
+                        use_service_role=True if self.client.service_role_key else False,
+                    )
+                else:
+                    raise insert_exc
             except Exception as insert_exc:
                 if ("23503" in str(insert_exc) or "foreign key" in str(insert_exc).lower()) and "user_id" in msg_payload:
                     msg_payload.pop("user_id", None)
@@ -466,11 +481,23 @@ class SupabaseChatStorageService:
         """
         Delete a conversation and its messages from storage if user owns it.
         """
+        # ── Memory store: enforce ownership before deleting ───────────────────
+        if not self.is_supabase_enabled:
+            conv = self._mem_convs.get(conversation_id)
+            if conv is None:
+                return False
+            # Enforce ownership: if a user_id is provided and the conversation
+            # belongs to a different user, deny deletion.
+            if user_id and conv.get("user_id") and conv.get("user_id") != user_id:
+                return False
+            self._mem_convs.pop(conversation_id, None)
+            self._mem_msgs.pop(conversation_id, None)
+            return True
+
+        # ── Supabase path: attempt deletion (RLS enforces ownership) ─────────
+        # Also clean memory cache
         self._mem_convs.pop(conversation_id, None)
         self._mem_msgs.pop(conversation_id, None)
-
-        if not self.is_supabase_enabled:
-            return True
 
         try:
             params: Dict[str, Any] = {"id": f"eq.{conversation_id}"}

@@ -114,7 +114,7 @@ def test_registration_validation_errors(auth_service):
     """Test registration validation rules (name, email, password match, terms)."""
     # Missing name
     u, err = auth_service.register_user("", "test@ex.com", "pass123", "pass123")
-    assert u is None and "Name is required" in err
+    assert u is None and "Full Name is required" in err
 
     # Invalid email
     u, err = auth_service.register_user("Name", "invalid-email", "pass123", "pass123")

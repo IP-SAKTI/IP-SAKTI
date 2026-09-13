@@ -103,6 +103,22 @@ class APIQueryResponse(BaseModel):
         default=None,
         description="Live web/patent research execution metadata.",
     )
+    detected_language: Optional[str] = Field(
+        default=None,
+        description="ISO 639-1 language code detected from user query.",
+    )
+    original_query: Optional[str] = Field(
+        default=None,
+        description="Original user query before normalization.",
+    )
+    normalized_english_query: Optional[str] = Field(
+        default=None,
+        description="Query normalized to English for retrieval.",
+    )
+    answer_language: Optional[str] = Field(
+        default=None,
+        description="ISO 639-1 language code of the generated answer.",
+    )
 
 
 class RegisterRequest(BaseModel):
@@ -137,7 +153,7 @@ class MagicLinkResponse(BaseModel):
 
 class AuthResponse(BaseModel):
     user: dict
-    token: str
+    token: Optional[str] = None
     message: Optional[str] = None
 
 
@@ -149,6 +165,17 @@ class ProfileUpdateRequest(BaseModel):
     role: Optional[str] = None
     bio: Optional[str] = None
     avatarUrl: Optional[str] = None
+
+
+class ProfileResponse(BaseModel):
+    id: str
+    fullName: str
+    email: str
+    organization: str = "IP-SAKTI"
+    role: str = "Researcher"
+    bio: str = ""
+    avatarUrl: str = ""
+
 
 
 class ContactRequest(BaseModel):

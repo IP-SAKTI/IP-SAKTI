@@ -193,10 +193,10 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         const profileData: UserProfile = {
           fullName: data.user.name || cleanEmail.split('@')[0],
           email: data.user.email || cleanEmail,
-          organization: 'IP-SAKTI',
-          role: 'Researcher',
-          bio: '',
-          avatarUrl: '',
+          organization: data.user.organization || 'IP-SAKTI',
+          role: data.user.role || 'Researcher',
+          bio: data.user.bio || '',
+          avatarUrl: data.user.avatarUrl || '',
         };
 
         setUser(sessionData);
@@ -251,6 +251,13 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
       if (res.ok) {
         const data = await res.json();
+
+        // 202 = registration succeeded but email confirmation is required.
+        if (data.confirmation_required || !data.token) {
+          setIsLoading(false);
+          return true;
+        }
+
         const sessionData: UserSession = {
           id: data.user.id,
           email: data.user.email || cleanEmail,
@@ -258,10 +265,10 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         const profileData: UserProfile = {
           fullName: data.user.name || cleanName,
           email: data.user.email || cleanEmail,
-          organization: 'IP-SAKTI',
-          role: 'Researcher',
-          bio: '',
-          avatarUrl: '',
+          organization: data.user.organization || 'IP-SAKTI',
+          role: data.user.role || 'Researcher',
+          bio: data.user.bio || '',
+          avatarUrl: data.user.avatarUrl || '',
         };
 
         setUser(sessionData);
@@ -294,33 +301,57 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const updateProfile = async (
     updated: Partial<UserProfile>
   ): Promise<boolean> => {
-    return new Promise((resolve) => {
-      setProfile((prev) => {
-        const newProfile: UserProfile = {
-          fullName: updated.fullName ?? prev?.fullName ?? 'User',
-          email:
-            updated.email ??
-            prev?.email ??
-            user?.email ??
-            '',
-          organization:
-            updated.organization ?? prev?.organization ?? 'IP-SAKTI',
-          role: updated.role ?? prev?.role ?? 'Researcher',
-          bio:
-            updated.bio !== undefined ? updated.bio : prev?.bio ?? '',
-          avatarUrl:
-            updated.avatarUrl !== undefined
-              ? updated.avatarUrl
-              : prev?.avatarUrl ?? '',
-        };
-        localStorage.setItem(
-          'ipsakti_user_profile',
-          JSON.stringify(newProfile)
-        );
-        return newProfile;
-      });
-      resolve(true);
+    try {
+      const token = typeof window !== 'undefined' ? localStorage.getItem('ipsakti_auth_token') : null;
+      if (token) {
+        const res = await fetch(`${API_BASE}/auth/profile`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            fullName: updated.fullName,
+            organization: updated.organization,
+            role: updated.role,
+            bio: updated.bio,
+            avatarUrl: updated.avatarUrl,
+          }),
+        });
+
+        if (res.ok) {
+          const data = await res.json();
+          const syncedProfile: UserProfile = {
+            fullName: data.fullName || updated.fullName || 'User',
+            email: data.email || user?.email || '',
+            organization: data.organization || 'IP-SAKTI',
+            role: data.role || 'Researcher',
+            bio: data.bio || '',
+            avatarUrl: data.avatarUrl || '',
+          };
+          setProfile(syncedProfile);
+          localStorage.setItem('ipsakti_user_profile', JSON.stringify(syncedProfile));
+          return true;
+        }
+      }
+    } catch (err) {
+      console.warn('PUT /auth/profile error:', err);
+    }
+
+    // Local fallback update
+    setProfile((prev) => {
+      const newProfile: UserProfile = {
+        fullName: updated.fullName ?? prev?.fullName ?? 'User',
+        email: updated.email ?? prev?.email ?? user?.email ?? '',
+        organization: updated.organization ?? prev?.organization ?? 'IP-SAKTI',
+        role: updated.role ?? prev?.role ?? 'Researcher',
+        bio: updated.bio !== undefined ? updated.bio : prev?.bio ?? '',
+        avatarUrl: updated.avatarUrl !== undefined ? updated.avatarUrl : prev?.avatarUrl ?? '',
+      };
+      localStorage.setItem('ipsakti_user_profile', JSON.stringify(newProfile));
+      return newProfile;
     });
+    return true;
   };
 
   // ── Send Magic Link ───────────────────────────────────────────────────────

@@ -36,22 +36,24 @@ export default function AuthCallbackPage() {
   useEffect(() => {
     async function handleCallback() {
       try {
-        // --- 1. Parse hash fragment -----------------------------------------------
-        const hash = window.location.hash;
-        if (!hash || !hash.includes('access_token')) {
-          setMessage('No session token found in the link. The link may be expired or invalid.');
-          setState('error');
-          setTimeout(() => router.push('/login'), 3000);
-          return;
+        // --- 1. Parse hash fragment and search params ----------------------------
+        let accessToken: string | null = null;
+        let refreshToken: string | null = null;
+
+        if (window.location.hash && window.location.hash.includes('access_token')) {
+          const hashParams = new URLSearchParams(window.location.hash.substring(1));
+          accessToken = hashParams.get('access_token');
+          refreshToken = hashParams.get('refresh_token');
         }
 
-        // Parse "key=value" pairs from the fragment (strip leading #)
-        const params = new URLSearchParams(hash.substring(1));
-        const accessToken = params.get('access_token');
-        const linkType = params.get('type'); // 'magiclink' | 'recovery' | etc.
+        if (!accessToken && window.location.search) {
+          const searchParams = new URLSearchParams(window.location.search);
+          accessToken = searchParams.get('access_token') || searchParams.get('token');
+          refreshToken = searchParams.get('refresh_token');
+        }
 
         if (!accessToken) {
-          setMessage('Missing access token in magic link. Please request a new link.');
+          setMessage('No session token found in the link. The link may be expired or invalid.');
           setState('error');
           setTimeout(() => router.push('/login'), 3000);
           return;
@@ -59,8 +61,6 @@ export default function AuthCallbackPage() {
 
         // --- 2. Store token in localStorage ----------------------------------------
         localStorage.setItem('ipsakti_auth_token', accessToken);
-
-        const refreshToken = params.get('refresh_token');
         if (refreshToken) {
           localStorage.setItem('ipsakti_auth_refresh_token', refreshToken);
         }
@@ -87,10 +87,10 @@ export default function AuthCallbackPage() {
           const profileData = {
             fullName: data.user.name || data.user.email?.split('@')[0] || 'Researcher',
             email: data.user.email || '',
-            organization: 'IP-SAKTI',
-            role: 'Researcher',
-            bio: '',
-            avatarUrl: '',
+            organization: data.user.organization || 'IP-SAKTI',
+            role: data.user.role || 'Researcher',
+            bio: data.user.bio || '',
+            avatarUrl: data.user.avatarUrl || '',
           };
           localStorage.setItem('ipsakti_auth_session', JSON.stringify(sessionData));
           localStorage.setItem('ipsakti_user_profile', JSON.stringify(profileData));

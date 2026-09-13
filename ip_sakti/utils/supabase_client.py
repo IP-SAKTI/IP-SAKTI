@@ -179,6 +179,103 @@ class SupabaseClient:
                 raise ValueError(f"Supabase magic link failed ({resp.status_code}): {err_detail}")
             return True
 
+    def admin_create_user(
+        self,
+        email: str,
+        password: str,
+        user_metadata: Optional[Dict[str, Any]] = None,
+        email_confirm: bool = True,
+    ) -> Dict[str, Any]:
+        """
+        Create a user directly in Supabase Auth via GoTrue Admin API.
+        Requires service_role_key. Sets email_confirm=True to avoid SMTP restrictions.
+        """
+        if not self.service_role_key:
+            raise RuntimeError("Supabase service role key not configured.")
+
+        url = f"{self.url}/auth/v1/admin/users"
+        payload: Dict[str, Any] = {
+            "email": email,
+            "password": password,
+            "email_confirm": email_confirm,
+        }
+        if user_metadata:
+            payload["user_metadata"] = user_metadata
+
+        headers = self._get_headers(use_service_role=True)
+        with httpx.Client(timeout=self.timeout) as client:
+            resp = client.post(url, json=payload, headers=headers)
+            if resp.status_code >= 400:
+                err_detail = resp.json().get("msg") or resp.json().get("message") or resp.text
+                raise ValueError(f"Supabase admin user creation failed ({resp.status_code}): {err_detail}")
+            return resp.json()
+
+    def admin_list_users(self) -> List[Dict[str, Any]]:
+        """
+        List users via GoTrue Admin API.
+        Requires service_role_key.
+        """
+        if not self.service_role_key:
+            raise RuntimeError("Supabase service role key not configured.")
+
+        url = f"{self.url}/auth/v1/admin/users"
+        headers = self._get_headers(use_service_role=True)
+        with httpx.Client(timeout=self.timeout) as client:
+            resp = client.get(url, headers=headers)
+            if resp.status_code >= 400:
+                err_detail = resp.json().get("msg") or resp.json().get("message") or resp.text
+                raise ValueError(f"Supabase admin list users failed ({resp.status_code}): {err_detail}")
+            data = resp.json()
+            return data.get("users", []) if isinstance(data, dict) else data
+
+    def admin_get_user(self, user_id: str) -> Optional[Dict[str, Any]]:
+        """
+        Get a single user by ID via GoTrue Admin API.
+        Requires service_role_key.
+        """
+        if not self.service_role_key:
+            raise RuntimeError("Supabase service role key not configured.")
+
+        url = f"{self.url}/auth/v1/admin/users/{user_id}"
+        headers = self._get_headers(use_service_role=True)
+        with httpx.Client(timeout=self.timeout) as client:
+            resp = client.get(url, headers=headers)
+            if resp.status_code == 200:
+                return resp.json()
+            return None
+
+    def admin_delete_user(self, user_id: str) -> bool:
+        """
+        Delete a user from Supabase Auth via GoTrue Admin API.
+        Requires service_role_key.
+        """
+        if not self.service_role_key:
+            raise RuntimeError("Supabase service role key not configured.")
+
+        url = f"{self.url}/auth/v1/admin/users/{user_id}"
+        headers = self._get_headers(use_service_role=True)
+        with httpx.Client(timeout=self.timeout) as client:
+            resp = client.delete(url, headers=headers)
+            return resp.status_code in (200, 204)
+
+    def update_user_metadata(self, access_token: str, metadata: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Update user metadata via GoTrue /auth/v1/user.
+        """
+        if not self.is_configured:
+            raise RuntimeError("Supabase credentials not configured.")
+
+        url = f"{self.url}/auth/v1/user"
+        headers = self._get_headers(token=access_token)
+        payload = {"data": metadata}
+
+        with httpx.Client(timeout=self.timeout) as client:
+            resp = client.put(url, json=payload, headers=headers)
+            if resp.status_code >= 400:
+                err_detail = resp.json().get("msg") or resp.json().get("message") or resp.text
+                raise ValueError(f"Supabase user metadata update failed ({resp.status_code}): {err_detail}")
+            return resp.json()
+
     # -------------------------------------------------------------------------
     # Database Operations (PostgREST /rest/v1)
     # -------------------------------------------------------------------------
@@ -269,3 +366,10 @@ class SupabaseClient:
         with httpx.Client(timeout=self.timeout) as client:
             resp = client.delete(url, params=params, headers=headers)
             return resp.status_code in (200, 204)
+
+    def get_profile(self, user_id: str) -> Optional[Dict[str, Any]]:
+        """
+        Fetch a user profile by ID from public.profiles using service role.
+        """
+        rows = self.select("profiles", params={"id": f"eq.{user_id}"}, use_service_role=True)
+        return rows[0] if rows else None

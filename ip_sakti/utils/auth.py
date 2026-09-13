@@ -66,6 +66,49 @@ class AuthService:
         if password != confirm_password:
             return None, "Passwords do not match."
 
+        # ── SQLite-only mode (Supabase not configured, local DB manager present) ──
+        if self.db_manager and not self.supabase_auth.is_supabase_enabled:
+            if not name or not name.strip():
+                return None, "Full Name is required."
+            import re as _re
+            email_pattern = _re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+            if not email or not email.strip() or not email_pattern.match(email.strip()):
+                return None, "Please enter a valid email address."
+            if not password or len(password) < 6:
+                return None, "Password must be at least 6 characters long."
+            if password != confirm_password:
+                return None, "Passwords do not match."
+            if not terms_accepted:
+                return None, "Please accept the Terms of Service and Privacy Policy."
+
+            try:
+                import uuid
+                from datetime import datetime, timezone
+                user_id = str(uuid.uuid4())
+                pw_hash = hash_password(password)
+                created_at = datetime.now(timezone.utc).isoformat()
+                clean_name = name.strip()
+                clean_email = email.strip().lower()
+                conn = self.db_manager.connection
+                with conn:
+                    cur = conn.execute("SELECT id FROM users WHERE email = ?", (clean_email,))
+                    if cur.fetchone():
+                        return None, "An account with this email already exists."
+                    conn.execute(
+                        "INSERT INTO users (id, email, password_hash, full_name, role, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+                        (user_id, clean_email, pw_hash, clean_name, "innovator", created_at),
+                    )
+                user_dict = {
+                    "id": user_id,
+                    "email": clean_email,
+                    "name": clean_name,
+                    "created_at": created_at,
+                }
+                return user_dict, None
+            except Exception as exc:
+                logger.warning(f"Local SQLite user registration failed: {exc}")
+                return None, f"Registration failed: {exc}"
+
         user, err = self.supabase_auth.register_user(
             name=name,
             email=email,
@@ -76,32 +119,6 @@ class AuthService:
         if user:
             return user, None
 
-        if self.db_manager:
-            try:
-                import uuid
-                from datetime import datetime, timezone
-                user_id = f"usr-{uuid.uuid4().hex[:12]}"
-                pw_hash = hash_password(password)
-                created_at = datetime.now(timezone.utc).isoformat()
-                conn = self.db_manager.connection
-                with conn:
-                    cur = conn.execute("SELECT id FROM users WHERE email = ?", (email.lower().strip(),))
-                    if cur.fetchone():
-                        return None, "Email address is already registered."
-                    conn.execute(
-                        "INSERT INTO users (id, email, password_hash, full_name, role, created_at) VALUES (?, ?, ?, ?, ?, ?)",
-                        (user_id, email.lower().strip(), pw_hash, name, "innovator", created_at),
-                    )
-                user_dict = {
-                    "id": user_id,
-                    "email": email.lower().strip(),
-                    "name": name,
-                    "created_at": created_at,
-                }
-                return user_dict, None
-            except Exception as exc:
-                logger.warning(f"Local SQLite user registration failed: {exc}")
-
         return None, err or "Registration failed."
 
     def authenticate_user(
@@ -111,11 +128,38 @@ class AuthService:
     ) -> Tuple[Optional[Dict[str, Any]], Optional[str]]:
         """
         Authenticate a user by email and password.
+
+        Tries Supabase first; falls back to local SQLite when Supabase
+        is not configured or the user only exists in the local database.
         """
+        # ── SQLite-only mode (Supabase not configured) ────────────────────────
+        if self.db_manager and not self.supabase_auth.is_supabase_enabled:
+            try:
+                conn = self.db_manager.connection
+                cur = conn.execute(
+                    "SELECT id, email, password_hash, full_name, created_at FROM users WHERE email = ?",
+                    (email.lower().strip(),)
+                )
+                row = cur.fetchone()
+                if row and verify_password(password, row["password_hash"]):
+                    user_dict = {
+                        "id": row["id"],
+                        "email": row["email"],
+                        "name": row["full_name"],
+                        "created_at": row["created_at"],
+                    }
+                    return user_dict, None
+                return None, "Incorrect email or password."
+            except Exception as exc:
+                logger.warning(f"Local SQLite authentication failed: {exc}")
+            return None, "Incorrect email or password."
+
+        # ── Supabase path ─────────────────────────────────────────────────────
         user, err = self.supabase_auth.authenticate_user(email=email, password=password)
         if user:
             return user, None
 
+        # ── SQLite fallback when Supabase fails and local db exists ───────────
         if self.db_manager:
             try:
                 conn = self.db_manager.connection
@@ -132,17 +176,27 @@ class AuthService:
                         "created_at": row["created_at"],
                     }
                     return user_dict, None
-                return None, "Invalid email or password credentials."
+                return None, "Incorrect email or password."
             except Exception as exc:
                 logger.warning(f"Local SQLite authentication failed: {exc}")
 
-        return None, err or "Invalid email or password credentials."
+        return None, err or "Incorrect email or password."
 
     def verify_session(self, access_token: str) -> Optional[Dict[str, Any]]:
         """
         Verify an authenticated session token via Supabase Auth.
         """
         return self.supabase_auth.verify_session(access_token)
+
+    def update_profile(
+        self,
+        access_token: str,
+        profile_data: Dict[str, Any],
+    ) -> Tuple[Optional[Dict[str, Any]], Optional[str]]:
+        """
+        Update user profile across Supabase Auth metadata and profiles table.
+        """
+        return self.supabase_auth.update_profile(access_token, profile_data)
 
     def send_magic_link(
         self,
@@ -159,4 +213,5 @@ class AuthService:
         Sign out session from Supabase Auth.
         """
         return self.supabase_auth.sign_out(access_token)
+
 

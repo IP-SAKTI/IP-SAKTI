@@ -103,6 +103,23 @@ def _clean_env(monkeypatch: pytest.MonkeyPatch) -> None:
     """
     Ensure that real .env values do not leak into tests.
     Strip known secrets from the environment for the duration of each test.
+
+    Supabase credentials are set to empty strings (NOT deleted) so that:
+    1. ``load_dotenv(override=False)`` called during module import cannot
+       restore them from the .env file.
+    2. ``SupabaseClient.is_configured`` returns False (empty URL + key).
+    3. All Supabase-backed services fall back to the local SQLite / memory
+       store, ensuring unit tests are deterministic and fully isolated.
+
+    Integration / live tests that need real Supabase should NOT use this
+    fixture or should explicitly set their own monkeypatches.
     """
-    for var in ("GEMINI_API_KEY",):
-        monkeypatch.delenv(var, raising=False)
+    # Use setenv("VAR", "") so load_dotenv(override=False) cannot re-populate
+    for var in (
+        "GEMINI_API_KEY",
+        "SUPABASE_URL",
+        "SUPABASE_ANON_KEY",
+        "SUPABASE_SERVICE_ROLE_KEY",
+        "RESEND_API_KEY",
+    ):
+        monkeypatch.setenv(var, "")

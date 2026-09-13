@@ -96,6 +96,8 @@ export default function RegisterPage() {
     return valid;
   };
 
+  const [confirmationPending, setConfirmationPending] = useState(false);
+
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!validate()) return;
@@ -106,9 +108,14 @@ export default function RegisterPage() {
     try {
       const success = await register(fullName.trim(), email.trim(), password);
       if (success) {
-        router.push('/');
+        const token = typeof window !== 'undefined' ? localStorage.getItem('ipsakti_auth_token') : null;
+        if (token) {
+          router.push('/');
+        } else {
+          setConfirmationPending(true);
+        }
       } else {
-        setFormError('Failed to create account. Please try again.');
+        setFormError('Failed to create account. An account with this email may already exist.');
       }
     } catch (err) {
       setFormError('Registration service error. Please try again.');
@@ -119,6 +126,44 @@ export default function RegisterPage() {
 
   return (
     <AuthLayout>
+      {/* Email Confirmation Pending State */}
+      {confirmationPending ? (
+        <div className="space-y-5">
+          <div>
+            <h2 className="font-serif-heading text-3xl font-bold text-white tracking-wide">
+              Check Your Email
+            </h2>
+            <p className="text-xs text-[#82A997] mt-1 font-sans-body">
+              Your account has been created successfully.
+            </p>
+          </div>
+          <div className="bg-emerald-900/40 border border-emerald-500/50 rounded-xl p-5 text-center space-y-3">
+            <div className="flex items-center justify-center">
+              <span className="text-3xl">✉️</span>
+            </div>
+            <p className="text-emerald-200 font-semibold text-sm">
+              Account created!
+            </p>
+            <p className="text-emerald-300/80 text-xs leading-relaxed">
+              We sent a confirmation link to{' '}
+              <span className="font-bold text-emerald-200">{email || 'your email'}</span>.
+              Click the link in the email to activate your account.
+            </p>
+            <p className="text-[#82A997] text-[11px]">
+              Check your spam folder if you don't see it. Once confirmed, you can log in.
+            </p>
+          </div>
+          <div className="pt-2 text-center text-xs text-[#82A997]">
+            <Link
+              href="/login"
+              className="text-[#2B7A54] hover:text-[#4FD68A] font-bold hover:underline transition-colors"
+            >
+              Go to Login
+            </Link>
+          </div>
+        </div>
+      ) : (
+      <>
       {/* Title & Subtitle */}
       <div>
         <h2 className="font-serif-heading text-3xl font-bold text-white tracking-wide">
@@ -239,6 +284,8 @@ export default function RegisterPage() {
           Login here
         </Link>
       </div>
+      </>
+      )}
     </AuthLayout>
   );
 }
