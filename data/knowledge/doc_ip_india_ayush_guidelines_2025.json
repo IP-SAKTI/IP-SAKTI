@@ -1,0 +1,29 @@
+{
+  "doc_id": "doc_ip_india_ayush_guidelines_2025",
+  "title": "Guidelines for Examination of Ayush Related Inventions (2025)",
+  "content": "The Guidelines for Examination of Ayush Related Inventions published by CGPDTM (IP India) outline statutory patentability criteria, Section 3 exclusions, biological material disclosures, and prior art examination rules for Ayurveda and AYUSH inventions. Section 3(p) excludes inventions that are in effect traditional knowledge or aggregations/duplications of known properties of traditionally known components. Section 3(e) excludes substances obtained by mere admixture resulting only in aggregation of properties; patentability under Section 3(e) requires demonstrating unexpected technical effect or synergistic efficacy through quantitative comparative experimental data over individual components. Under Section 10(4)(d)(ii) of the Patents Act 1970, patent applicants must disclose the exact source and geographical origin of any biological material used in the invention. TKDL is an international digital classification search tool enabling patent examiners to search documented traditional knowledge prior art during examination. Patent protection may potentially be considered for novel, non-obvious, and industrially applicable Ayush-related inventions that satisfy statutory requirements and are not excluded under Section 3.",
+  "metadata": {
+    "source_id": "ip_india_ayush_guidelines_2025",
+    "source_name": "Office of the Controller General of Patents, Designs and Trade Marks",
+    "source_url": "https://ipindia.gov.in/storage/uploads/docs-operator/335e2746-58c1-4b56-a1e5-cdd172a92a3c.pdf",
+    "canonical_url": "https://ipindia.gov.in/resource/patents-resources-guidelines",
+    "authority": "CGPDTM",
+    "document_type": "guideline",
+    "jurisdiction": "india",
+    "publication_date": "2025-01-15",
+    "language": "en",
+    "permitted_use": true,
+    "archive_url": "https://web.archive.org/web/20260519132110/https://www.ipindia.gov.in/resource/patents-resources-guidelines"
+  },
+  "tags": [
+    "ip",
+    "ayush",
+    "patents",
+    "section_3p",
+    "section_3e",
+    "section_10",
+    "tkdl",
+    "synergy",
+    "guidelines_2025"
+  ]
+}

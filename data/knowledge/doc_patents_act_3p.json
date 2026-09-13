@@ -1,0 +1,26 @@
+{
+  "doc_id": "doc_patents_act_3p",
+  "title": "The Patents Act 1970 - Section 3(p) Traditional Knowledge Non-Patentability",
+  "content": "Section 3(p) of the Patents Act, 1970 specifies that an invention which in effect is traditional knowledge or which is an aggregation or duplication of known properties of traditionally known component or components is not an invention within the meaning of this Act and is strictly non-patentable in India. Section 3(e) excludes substances obtained by mere admixture resulting only in aggregation of properties; demonstrating patentability under Section 3(e) requires proving an unexpected technical effect or synergistic efficacy through quantitative comparative experimental evidence. Under CGPDTM Ayush Examination Guidelines, patent protection may potentially be considered for an Ayush-related invention ONLY IF it satisfies statutory patentability criteria (novelty, inventive step, industrial applicability) and is not excluded under Section 3. Under Section 10(4)(d)(ii), applicants using biological material must disclose its source and geographical origin. Patent examiners utilize search repositories such as TKDL and classical texts (Charaka Samhita, Sushruta Samhita, Ayurvedic Pharmacopoeia of India) to evaluate prior art and Section 3(p) exclusions.",
+  "metadata": {
+    "source_id": "ip_india_patents_act_3p",
+    "source_name": "Office of the Controller General of Patents, Designs and Trade Marks",
+    "source_url": "https://ipindia.gov.in/acts/patent-act-1970/section-3",
+    "authority": "CGPDTM",
+    "document_type": "act",
+    "jurisdiction": "india",
+    "publication_date": "1970-09-19",
+    "language": "en",
+    "permitted_use": true,
+    "canonical_url": "https://ipindia.gov.in/resource/patents-resources-act",
+    "archive_url": "https://web.archive.org/web/20250517033317/https://ipindia.gov.in/patents.htm"
+  },
+  "tags": [
+    "ip",
+    "patents",
+    "traditional_knowledge",
+    "section_3p",
+    "section_3e",
+    "india"
+  ]
+}

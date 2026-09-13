@@ -1,0 +1,26 @@
+{
+  "doc_id": "doc_tkdl_wipo_policy",
+  "title": "WIPO TKDL Policy & Prior Art Status for Traditional Knowledge",
+  "content": "The Traditional Knowledge Digital Library (TKDL) is a digital search repository developed jointly by CSIR and Ministry of AYUSH that translates and organizes documented traditional knowledge from classical texts into international patent classification formats. The underlying documented traditional knowledge in classical texts constitutes prior art where legally applicable. TKDL itself is a structured search tool that enables patent examiners to identify relevant traditional knowledge prior art. Under access agreements with participating national and regional patent offices (including EPO, USPTO, JPO, and CGPDTM), patent examiners access TKDL during search and examination under WIPO access frameworks. TKDL contains hundreds of thousands of documented traditional formulations and practices from Ayurveda, Siddha, Unani, and Yoga.",
+  "metadata": {
+    "source_id": "tkdl_wipo_policy",
+    "source_name": "World Intellectual Property Organization / CSIR",
+    "source_url": "https://www.wipo.int/en/web/traditional-knowledge",
+    "authority": "World Intellectual Property Organization / CSIR",
+    "document_type": "database_entry",
+    "jurisdiction": "both",
+    "publication_date": "2018-05-14",
+    "language": "en",
+    "permitted_use": true,
+    "canonical_url": "https://www.wipo.int/en/web/traditional-knowledge",
+    "archive_url": "https://web.archive.org/web/20241218194909/https://www.wipo.int/tk/en/"
+  },
+  "tags": [
+    "ip",
+    "tkdl",
+    "wipo",
+    "prior_art",
+    "ayurveda",
+    "traditional_knowledge"
+  ]
+}

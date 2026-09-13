@@ -1,0 +1,27 @@
+{
+  "doc_id": "doc_biodiversity_act_2002",
+  "title": "Biological Diversity Act 2002 - Access and Benefit Sharing (ABS) Provisions",
+  "content": "The Biological Diversity Act, 2002 regulates access to Indian biological resources and associated traditional knowledge, establishing distinct legal obligations separate from ASU drug manufacturing licences. Under Section 3 and Section 4, foreign individuals, non-resident Indians (NRIs), and entities with foreign participation in share capital or management must obtain prior approval from the National Biodiversity Authority (NBA) in Form I before obtaining Indian biological resources for commercial utilization or research. Under Section 6(1), any person (Indian or foreign) applying for any intellectual property right in or outside India for an invention based on research or information on biological resources obtained from India must obtain prior approval of the NBA in Form III before grant of patent. Section 6 approvals involve Equitable Access and Benefit Sharing (ABS) royalty agreements ranging from 0.1% to 5% based on product turnover or licensing revenue. Indian entities utilizing biological resources for commercial production must give prior intimation to the State Biodiversity Board (SBB) under Section 7 unless statutory exemptions apply.",
+  "metadata": {
+    "source_id": "biodiversity_act_2002",
+    "source_name": "National Biodiversity Authority",
+    "source_url": "https://www.indiacode.nic.in/handle/123456789/2046",
+    "authority": "National Biodiversity Authority / MoEFCC",
+    "document_type": "act",
+    "jurisdiction": "india",
+    "publication_date": "2003-02-05",
+    "language": "en",
+    "permitted_use": true,
+    "canonical_url": "https://www.indiacode.nic.in/handle/123456789/2046",
+    "archive_url": "https://web.archive.org/web/20221209204024/https://www.indiacode.nic.in/handle/123456789/2046"
+  },
+  "tags": [
+    "tk_abs",
+    "biodiversity",
+    "nba",
+    "abs",
+    "royalties",
+    "section_6",
+    "sbb"
+  ]
+}

@@ -1,3 +1,12 @@
+---
+title: IP-SAKTI API
+emoji: ⚖️
+colorFrom: blue
+colorTo: green
+sdk: docker
+app_port: 7860
+---
+
 # IP-SAKTI Sahayak
 
 ### Multilingual AI Assistant for Intellectual Property and Regulatory Guidance in Ayurveda

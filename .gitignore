@@ -75,10 +75,15 @@ sentence_transformers/
 
 # ── Retrieval indexes ─────────────────────────────────────────────────────────
 indexes/
+!indexes/
 *.index
 *.faiss
 bm25_*.pkl
 faiss_*.pkl
+!indexes/faiss.index
+!indexes/faiss_meta.json
+!indexes/bm25.pkl
+!indexes/bm25_meta.json
 
 # ── Databases ─────────────────────────────────────────────────────────────────
 db/*
@@ -89,6 +94,9 @@ db/*
 
 # ── Large data & generated artefacts ─────────────────────────────────────────
 data/
+!data/
+!data/knowledge/
+!data/knowledge/*.json
 *.csv
 *.jsonl
 *.parquet
