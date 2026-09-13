@@ -3,7 +3,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import {
-  ShieldCheck,
   ExternalLink,
   FileText,
   AlertTriangle,
@@ -19,7 +18,7 @@ import {
   Square,
 } from 'lucide-react';
 import { APIQueryResponse, getDocumentUrl } from '@/lib/api';
-import { speakText, stopSpeaking, validateScriptForLanguage } from '@/lib/voice';
+import { speakText, stopSpeaking, validateScriptForLanguage, detectScriptFromText } from '@/lib/voice';
 
 interface AnswerWorkspaceProps {
   query: string;
@@ -38,6 +37,10 @@ function detectTextLanguage(text: string, defaultLang?: string): string {
   return defaultLang || 'en';
 }
 
+/**
+ * AnswerWorkspace Component
+ * Displays research response, citations, evidence cards, and action buttons.
+ */
 export default function AnswerWorkspace({
   query,
   response,
@@ -45,19 +48,6 @@ export default function AnswerWorkspace({
 }: AnswerWorkspaceProps) {
   const [isSpeakingState, setIsSpeakingState] = useState<boolean>(false);
 
-  // Safely extract Cosine Similarity score from backend vector retrieval
-  let rawCosineSim: number | null = null;
-  if (typeof response.cosine_similarity === 'number' && !isNaN(response.cosine_similarity)) {
-    rawCosineSim = response.cosine_similarity;
-  } else if (Array.isArray(response.evidence) && response.evidence.length > 0) {
-    const topFaissScore = (response.evidence[0] as any)?.faiss_score;
-    if (typeof topFaissScore === 'number' && !isNaN(topFaissScore)) {
-      rawCosineSim = topFaissScore;
-    }
-  }
-
-  const hasValidCosineSim = rawCosineSim !== null;
-  const cosineSimVal = hasValidCosineSim ? rawCosineSim!.toFixed(4) : 'N/A';
 
   // Extract Bayesian Confidence Engine metrics
   const rawConf = typeof response.confidence_score === 'number'
@@ -93,13 +83,15 @@ export default function AnswerWorkspace({
       setIsSpeakingState(false);
     } else {
       const finalDisplayedAnswer = response.answer || '';
-      const rawLang = response.answer_language || response.detected_language || (response as any).language;
-      const answerLanguage = (rawLang || detectTextLanguage(finalDisplayedAnswer, 'en')).toLowerCase().trim();
+      const scriptLang = detectScriptFromText(finalDisplayedAnswer);
+      const rawLang = scriptLang || response.answer_language || response.detected_language || (response as any).language;
+      const answerLanguage = (rawLang || 'en').toLowerCase().trim();
       const localeMap: Record<string, string> = {
         en: 'en-IN',
         hi: 'hi-IN',
         te: 'te-IN',
         kn: 'kn-IN',
+        ml: 'ml-IN',
       };
       const speechLocale = localeMap[answerLanguage] || 'en-IN';
 
@@ -146,11 +138,16 @@ export default function AnswerWorkspace({
       bn: 'Bengali',
       gu: 'Gujarati',
       pa: 'Punjabi',
+      sa: 'Sanskrit',
+      or: 'Odia',
+      as: 'Assamese',
+      ur: 'Urdu',
     };
     return map[clean] || 'English';
   };
 
-  const displayLangCode = response.detected_language || response.answer_language || detectTextLanguage(response.answer || '', 'en');
+  const answerScriptLang = detectScriptFromText(response.answer || '');
+  const displayLangCode = response.detected_language || response.answer_language || answerScriptLang || 'en';
   const displayLangName = getLanguageName(displayLangCode);
 
   return (
@@ -187,18 +184,6 @@ export default function AnswerWorkspace({
               );
             })}
 
-            {/* 1. Cosine Similarity Score (Vector Retrieval Metric) */}
-            {hasValidCosineSim ? (
-              <div className="flex items-center gap-1.5 bg-[#003E29] text-white text-xs font-semibold px-3 py-1 rounded-md shadow-xs" title="FAISS Vector Cosine Similarity Score">
-                <ShieldCheck className="w-3.5 h-3.5 text-emerald-300" />
-                <span>Cosine Sim: {cosineSimVal}</span>
-              </div>
-            ) : (
-              <div className="flex items-center gap-1.5 bg-gray-100 text-gray-700 text-xs font-medium px-2.5 py-1 rounded-md">
-                <Info className="w-3.5 h-3.5" />
-                <span>Cosine Sim: N/A</span>
-              </div>
-            )}
 
             {/* 2. Bayesian Confidence Engine Score & Level */}
             <div
@@ -349,9 +334,11 @@ export default function AnswerWorkspace({
               const isWebSource = Boolean(
                 item.source_id?.startsWith('web-') ||
                 item.source_id?.startsWith('live-') ||
+                item.source_id?.startsWith('SRC_LIVE') ||
+                (item as any).document_type === 'live_web_source' ||
                 (rawUrl && rawUrl.startsWith('http') && !rawUrl.includes('/document/'))
               );
-              
+
               const docUrl = rawUrl && rawUrl.startsWith('http') ? rawUrl : item.source_id ? getDocumentUrl(item.source_id) : '#';
               const hasValidUrl = docUrl && docUrl !== '#';
 

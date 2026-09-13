@@ -117,6 +117,21 @@ class PipelineCoordinator:
         # Step 2: Orchestrator (Classification -> QueryContext)
         q_ctx = self.orchestrator.process(request, m_ctx)
 
+        logger.info(f"[RAG INPUT]\n{q_ctx.translated_query}")
+
+        # Check for translation failure on non-English queries (Phase 6 requirement)
+        if getattr(m_ctx, "translation_status", "success") == "failed" and m_ctx.effective_language != "en":
+            logger.error(f"[TRANSLATION_FAILURE] Aborting English RAG execution because query translation failed for language '{m_ctx.effective_language}'")
+            return FinalResponse(
+                query_id=request.query_id,
+                answer=f"Multilingual query translation into English failed for language '{m_ctx.effective_language.upper()}'. Please re-phrase your query.",
+                is_abstention=True,
+                detected_language=m_ctx.detected_language,
+                response_language=m_ctx.response_language,
+                original_query=m_ctx.original_query,
+                normalized_english_query=None,
+            )
+
         # Step 3: Rule Engine Evaluation
         applied_rules = self.rule_engine.evaluate_rules(q_ctx)
 

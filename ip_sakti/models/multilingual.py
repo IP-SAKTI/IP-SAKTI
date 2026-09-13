@@ -189,6 +189,10 @@ class MultilingualContext(BaseModel):
             "if the user supplied one explicitly."
         ),
     )
+    translation_status: str = Field(
+        default="success",
+        description="Status of multilingual query translation ('success' or 'failed').",
+    )
 
     @property
     def detected_language(self) -> str:

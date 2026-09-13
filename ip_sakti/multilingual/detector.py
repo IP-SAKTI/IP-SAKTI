@@ -38,9 +38,36 @@ logger = logging.getLogger(__name__)
 DetectorFactory.seed = 0
 
 
+def _detect_script(text: str) -> str | None:
+    """
+    Deterministically identify language code from Unicode script ranges.
+
+    Supports Devanagari (hi/mr/sa), Telugu (te), Kannada (kn), Malayalam (ml),
+    Tamil (ta), Bengali/Assamese (bn/as), Gujarati (gu), Gurmukhi (pa),
+    Odia (or), Arabic/Urdu (ur).
+    """
+    counts = {
+        "hi": sum(1 for c in text if 0x0900 <= ord(c) <= 0x097F),
+        "te": sum(1 for c in text if 0x0C00 <= ord(c) <= 0x0C7F),
+        "kn": sum(1 for c in text if 0x0C80 <= ord(c) <= 0x0CFF),
+        "ml": sum(1 for c in text if 0x0D00 <= ord(c) <= 0x0D7F),
+        "ta": sum(1 for c in text if 0x0B80 <= ord(c) <= 0x0BFF),
+        "bn": sum(1 for c in text if 0x0980 <= ord(c) <= 0x09FF),
+        "gu": sum(1 for c in text if 0x0A80 <= ord(c) <= 0x0AFF),
+        "pa": sum(1 for c in text if 0x0A00 <= ord(c) <= 0x0A7F),
+        "or": sum(1 for c in text if 0x0B00 <= ord(c) <= 0x0B7F),
+        "ur": sum(1 for c in text if 0x0600 <= ord(c) <= 0x06FF),
+    }
+    best_lang, count = max(counts.items(), key=lambda x: x[1])
+    clean_text = text.replace(" ", "").replace("\n", "").replace("\r", "")
+    if count >= 3 or (len(clean_text) > 0 and (count / len(clean_text)) >= 0.05):
+        return best_lang
+    return None
+
+
 class LanguageDetector:
     """
-    Detects the language of an input text using ``langdetect``.
+    Detects the language of an input text using Unicode script analysis and ``langdetect``.
 
     Parameters
     ----------
@@ -100,6 +127,20 @@ class LanguageDetector:
                 "Language detection failed: input text is empty."
             )
 
+        # 1. Deterministic script validation
+        script_lang = _detect_script(stripped)
+        if script_lang and self._registry.is_supported(script_lang):
+            logger.info(
+                "Deterministic script validation matched language",
+                extra={"script_lang": script_lang, "text_preview": stripped[:30]},
+            )
+            return DetectionResult(
+                language=script_lang,
+                confidence=1.0,
+                is_fallback=False,
+            )
+
+        # 2. Pretrained statistical detector (langdetect)
         try:
             candidates = detect_langs(stripped)
         except LangDetectException as exc:
@@ -146,3 +187,4 @@ class LanguageDetector:
             confidence=confidence,
             is_fallback=False,
         )
+

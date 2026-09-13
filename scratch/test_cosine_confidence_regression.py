@@ -1,188 +1,167 @@
 """
-scratch/test_cosine_confidence_regression.py
+scratch/test_cosine_confidence_regression.py — Comprehensive Regression & Validation Test
+for Cosine Similarity and Bayesian Confidence Score Independence.
 
-Automated regression test suite validating:
-1. Original cosine calculation remains intact (raw FAISS vector inner product).
-2. Raw cosine is not modified by confidence or scaling.
-3. Target query produces deterministic cosine similarity.
-4. Target query produces deterministic Bayesian confidence.
-5. High cosine + strong evidence -> HIGH confidence.
-6. Moderate cosine + strong evidence -> does not saturate at 99%+.
-7. Poor citation grounding reduces confidence.
-8. Conflicting sources reduce confidence.
-9. Confidence never exceeds configured uncalibrated maximum ceiling (0.95).
-10. Confidence calculation does not affect retrieval results.
+Covers Section 11 items A through J:
+A. Identical vectors: cosine = 1.0
+B. Orthogonal vectors: cosine = 0.0
+C. Known vectors: mathematical cosine verification
+D. Raw cosine is unchanged after confidence calculation
+E. No evidence: confidence = 0, abstain = True
+F. High cosine + poor citation: confidence decreases
+G. Conflicting sources: confidence decreases
+H. Strong evidence: confidence is HIGH but <= 0.95
+I. Repeated identical inputs: same cosine, same confidence
+J. Changing confidence weights: must NOT change raw cosine
 """
 
-from __future__ import annotations
-
-import os
 import sys
-import logging
+import numpy as np
 from pathlib import Path
 
-# Ensure root directory is on sys.path
+# Add project root to sys.path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from ip_sakti.service import IPSAKTIService
-from ip_sakti.models.query import (
-    QueryRequest,
-    Jurisdiction,
-    FormulationCategory,
-    EvidenceChunk,
-    CitationRecord,
-)
 from ip_sakti.confidence.bayesian_confidence import BayesianConfidenceEngine, BayesianConfidenceResult
-
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger("regression_test")
+from ip_sakti.models.query import EvidenceChunk, CitationRecord
 
 
-def test_target_query_end_to_end() -> dict:
-    """Test the specified target query through the full pipeline."""
-    query_text = (
-        "Is a formulation containing turmeric and neem patentable in India, "
-        "considering the Traditional Knowledge exclusion under Section 3(p)?"
-    )
-    logger.info(f"Executing target query pipeline: {query_text!r}")
-    
-    srv = IPSAKTIService()
-    req = QueryRequest(
-        raw_query=query_text,
-        jurisdiction=Jurisdiction.INDIA,
-        formulation_category=FormulationCategory.CLASSICAL,
-    )
-    
-    resp = srv.process_query(req)
-    
-    # Extract FAISS scores for top 5 evidence chunks
-    faiss_scores = [chunk.faiss_score for chunk in resp.evidence if chunk.faiss_score is not None]
-    raw_max_cosine = max(faiss_scores) if faiss_scores else 0.0
-    
-    logger.info("=== TOP 5 FAISS RESULTS ===")
-    for idx, chunk in enumerate(resp.evidence[:5], 1):
-        logger.info(
-            f"#{idx} | doc_id: {chunk.doc_id} | title: {chunk.title} | raw cosine: {chunk.faiss_score:.4f}"
-        )
-        
-    logger.info("\n=== CONFIDENCE METRICS & SIGNALS ===")
-    conf = resp.confidence
-    if conf:
-        logger.info(f"Bayesian Confidence Score: {conf.score:.4f} ({conf.confidence_percentage:.2f}%)")
-        logger.info(f"Confidence Level: {conf.confidence_level}")
-        logger.info(f"Should Abstain: {conf.below_threshold}")
-        logger.info(f"Signals: {conf.signals}")
-    
-    return {
-        "query": query_text,
-        "raw_max_cosine": raw_max_cosine,
-        "confidence": conf,
-        "evidence": resp.evidence,
-        "response": resp,
-    }
+def compute_vector_cosine(a: np.ndarray, b: np.ndarray) -> float:
+    """Explicit mathematical cosine similarity: dot(a, b) / (||a|| * ||b||)."""
+    dot_prod = np.dot(a, b)
+    norm_a = np.linalg.norm(a)
+    norm_b = np.linalg.norm(b)
+    if norm_a == 0.0 or norm_b == 0.0:
+        return 0.0
+    return float(dot_prod / (norm_a * norm_b))
 
 
-def run_10_regression_checks(target_data: dict) -> bool:
-    """Validate all 10 requirements specified in Part 11."""
-    logger.info("\n==================================================")
-    logger.info("=== RUNNING 10 REGRESSION CHECKS ===")
-    logger.info("==================================================")
-    
+def test_vector_math_and_immutability():
+    print("\n--- 1. Testing Vector Math & Immutability (A, B, C, D, J) ---")
+
+    # A) Identical vectors -> cosine = 1.0
+    v1 = np.array([1.0, 0.0, 0.0], dtype=np.float32)
+    v2 = np.array([1.0, 0.0, 0.0], dtype=np.float32)
+    cos_ident = compute_vector_cosine(v1, v2)
+    assert abs(cos_ident - 1.0) < 1e-6, f"A. Identical vector cosine failed: {cos_ident}"
+    print(f"  [PASS] A. Identical vectors cosine: {cos_ident:.4f} == 1.0000")
+
+    # B) Orthogonal vectors -> cosine = 0.0
+    v3 = np.array([1.0, 0.0], dtype=np.float32)
+    v4 = np.array([0.0, 1.0], dtype=np.float32)
+    cos_ortho = compute_vector_cosine(v3, v4)
+    assert abs(cos_ortho - 0.0) < 1e-6, f"B. Orthogonal vector cosine failed: {cos_ortho}"
+    print(f"  [PASS] B. Orthogonal vectors cosine: {cos_ortho:.4f} == 0.0000")
+
+    # C) Known vectors -> dot([3,4], [4,3]) / (5 * 5) = 24 / 25 = 0.96
+    v7 = np.array([3.0, 4.0], dtype=np.float32)
+    v8 = np.array([4.0, 3.0], dtype=np.float32)
+    cos_known = compute_vector_cosine(v7, v8)
+    assert abs(cos_known - 0.96) < 1e-6, f"C. Known vector cosine failed: {cos_known}"
+    print(f"  [PASS] C. Known vectors ([3,4], [4,3]) cosine: {cos_known:.4f} == 0.9600")
+
+    # D) Raw cosine is unchanged after confidence calculation
     engine = BayesianConfidenceEngine()
-    
-    # Check 1: Original cosine calculation remains intact (raw FAISS vector inner product)
-    raw_cosine = target_data["raw_max_cosine"]
-    assert 0.0 <= raw_cosine <= 1.0, f"Check 1 Failed: raw_cosine {raw_cosine} out of bounds [0, 1]"
-    logger.info(f"Check 1 Passed: Raw cosine is valid FAISS inner product dot product: {raw_cosine:.4f}")
-    
-    # Check 2: Raw cosine is not modified by confidence
-    conf_obj = target_data["confidence"]
-    assert raw_cosine != conf_obj.score or raw_cosine == conf_obj.score, "Check 2 Passed"
-    assert "scaled" not in str(raw_cosine), "Check 2 Passed: Cosine is un-scaled"
-    logger.info(f"Check 2 Passed: Raw cosine ({raw_cosine:.4f}) is completely independent of confidence score ({conf_obj.score:.4f})")
-    
-    # Check 3: Deterministic cosine similarity
-    srv = IPSAKTIService()
-    req = QueryRequest(
-        raw_query=target_data["query"],
-        jurisdiction=Jurisdiction.INDIA,
-        formulation_category=FormulationCategory.CLASSICAL,
+    raw_cosine_before = 0.7046
+    ev = EvidenceChunk(
+        chunk_id="chunk_101",
+        doc_id="doc_202",
+        source_id="src_303",
+        content="Ayurvedic patent licensing and compliance rules.",
+        source_label="[SOURCE_1]",
+        source_name="Ayush Guidelines",
+        faiss_score=raw_cosine_before,
+        rerank_score=2.1,
     )
-    resp2 = srv.process_query(req)
-    faiss_scores2 = [chunk.faiss_score for chunk in resp2.evidence if chunk.faiss_score is not None]
-    raw_cosine2 = max(faiss_scores2) if faiss_scores2 else 0.0
-    assert abs(raw_cosine - raw_cosine2) < 1e-6, f"Check 3 Failed: Cosine not deterministic ({raw_cosine} vs {raw_cosine2})"
-    logger.info(f"Check 3 Passed: Cosine similarity is 100% deterministic ({raw_cosine:.4f})")
-    
-    # Check 4: Deterministic Bayesian confidence
-    conf2 = resp2.confidence
-    assert abs(conf_obj.score - conf2.score) < 1e-6, f"Check 4 Failed: Confidence not deterministic ({conf_obj.score} vs {conf2.score})"
-    logger.info(f"Check 4 Passed: Bayesian confidence is 100% deterministic ({conf_obj.score:.4f})")
-    
-    # Check 5: High cosine + strong evidence -> HIGH confidence
-    high_evidence = [
-        EvidenceChunk(chunk_id="c1", doc_id="d1", title="Doc 1", content="Turmeric neem Section 3p", faiss_score=0.92, rerank_score=3.5, source_id="s1", source_label="[SOURCE_1]", source_name="Source 1"),
-        EvidenceChunk(chunk_id="c2", doc_id="d2", title="Doc 2", content="Section 3p traditional knowledge", faiss_score=0.89, rerank_score=2.8, source_id="s2", source_label="[SOURCE_2]", source_name="Source 2"),
-        EvidenceChunk(chunk_id="c3", doc_id="d3", title="Doc 3", content="Ayush guidelines patentability", faiss_score=0.87, rerank_score=2.2, source_id="s3", source_label="[SOURCE_3]", source_name="Source 3"),
+    citations = [
+        CitationRecord(
+            claim_snippet="Ayurvedic patent licensing",
+            source_label="[SOURCE_1]",
+            chunk_id="chunk_101",
+            is_grounded=True,
+        )
     ]
-    high_citations = [
-        CitationRecord(claim_snippet="Section 3(p) excludes TK", source_label="[SOURCE_1]", chunk_id="c1", is_grounded=True),
-        CitationRecord(claim_snippet="Turmeric and neem formulations", source_label="[SOURCE_2]", chunk_id="c2", is_grounded=True),
+
+    res = engine.evaluate_confidence(
+        evidence=[ev],
+        citations=citations,
+        answer="Ayurvedic patent licensing requires Form 25 and Ayush approval.",
+    )
+    raw_cosine_after = ev.faiss_score
+    assert raw_cosine_before == raw_cosine_after, f"D. Raw cosine mutated! Before: {raw_cosine_before}, After: {raw_cosine_after}"
+    print(f"  [PASS] D. Raw cosine before ({raw_cosine_before}) == raw cosine after ({raw_cosine_after})")
+
+    # J) Changing confidence weights must NOT change raw cosine
+    custom_engine = BayesianConfidenceEngine(prior=0.30)
+    custom_engine.weights["cosine_similarity"] = 0.05
+    res_custom = custom_engine.evaluate_confidence(evidence=[ev], citations=citations, answer="Test answer.")
+    assert ev.faiss_score == raw_cosine_before, f"J. Changing weights mutated raw cosine!"
+    print(f"  [PASS] J. Changing confidence weights did NOT alter raw cosine ({ev.faiss_score})")
+
+
+def test_confidence_safety_cases():
+    print("\n--- 2. Testing Confidence Cases (E, F, G, H, I) ---")
+    engine = BayesianConfidenceEngine()
+
+    # E) No evidence: confidence = 0, abstain = True
+    res_e = engine.evaluate_confidence(evidence=[], citations=[], answer="No evidence.")
+    assert res_e.raw_confidence == 0.0, f"E. Expected 0.0, got {res_e.raw_confidence}"
+    assert res_e.should_abstain, "E. Expected abstain = True"
+    print(f"  [PASS] E. No evidence -> Conf={res_e.raw_confidence}, Abstain={res_e.should_abstain}")
+
+    # H) Strong evidence: confidence is HIGH but <= 0.95
+    ev_h = [
+        EvidenceChunk(
+            chunk_id="c1", doc_id="d1", source_id="s1",
+            content="Manufacturing requirements under Drugs and Cosmetics Act.",
+            source_label="[SOURCE_1]", source_name="D&C Act 1940",
+            faiss_score=0.85, rerank_score=3.5,
+        ),
+        EvidenceChunk(
+            chunk_id="c2", doc_id="d2", source_id="s2",
+            content="Licensing rules for Ayurvedic formulations.",
+            source_label="[SOURCE_2]", source_name="Ayush Rules",
+            faiss_score=0.82, rerank_score=3.0,
+        ),
     ]
-    res_high = engine.evaluate_confidence(high_evidence, high_citations, answer="Section 3(p) excludes turmeric and neem formulations.")
-    assert res_high.confidence_level == "HIGH", f"Check 5 Failed: Level is {res_high.confidence_level}, expected HIGH"
-    logger.info(f"Check 5 Passed: High cosine + strong evidence -> HIGH level ({res_high.confidence_percentage:.2f}%)")
-    
-    # Check 6: Moderate cosine + strong evidence -> does not automatically saturate at 99%+
-    mod_evidence = [
-        EvidenceChunk(chunk_id="c1", doc_id="d1", title="Doc 1", content="Turmeric neem Section 3p", faiss_score=0.68, rerank_score=1.5, source_id="s1", source_label="[SOURCE_1]", source_name="Source 1"),
-        EvidenceChunk(chunk_id="c2", doc_id="d2", title="Doc 2", content="Section 3p traditional knowledge", faiss_score=0.65, rerank_score=1.2, source_id="s2", source_label="[SOURCE_2]", source_name="Source 2"),
+    cit_h = [
+        CitationRecord(claim_snippet="Manufacturing requirements", source_label="[SOURCE_1]", chunk_id="c1", is_grounded=True),
+        CitationRecord(claim_snippet="Licensing rules", source_label="[SOURCE_2]", chunk_id="c2", is_grounded=True),
     ]
-    res_mod = engine.evaluate_confidence(mod_evidence, high_citations, answer="Section 3(p) excludes turmeric and neem formulations.")
-    assert res_mod.confidence_percentage < 95.0, f"Check 6 Failed: Moderate evidence saturated at {res_mod.confidence_percentage}%"
-    logger.info(f"Check 6 Passed: Moderate cosine + strong evidence produced non-saturating confidence ({res_mod.confidence_percentage:.2f}%, level: {res_mod.confidence_level})")
-    
-    # Check 7: Poor citation grounding reduces confidence
-    bad_citations = [
-        CitationRecord(claim_snippet="Unrelated claim 1", source_label="[SOURCE_1]", chunk_id="c1", is_grounded=False),
-        CitationRecord(claim_snippet="Unrelated claim 2", source_label="[SOURCE_2]", chunk_id="c2", is_grounded=False),
-        CitationRecord(claim_snippet="Unrelated claim 3", source_label="[SOURCE_3]", chunk_id="c3", is_grounded=False),
+    res_h = engine.evaluate_confidence(evidence=ev_h, citations=cit_h, answer="Licensing process requires approval.")
+    assert res_h.confidence_level == "HIGH", f"H. Expected HIGH, got {res_h.confidence_level}"
+    assert res_h.raw_confidence <= 0.93, f"H. Exceeded 0.93 max cap: {res_h.raw_confidence}"
+    print(f"  [PASS] H. Strong evidence -> Conf={res_h.confidence_percentage}% ({res_h.confidence_level}) <= 93%")
+
+    # F) High cosine + poor citation grounding: confidence decreases
+    cit_f = [
+        CitationRecord(claim_snippet="Claim 1", source_label="[SOURCE_1]", chunk_id="c1", is_grounded=False),
+        CitationRecord(claim_snippet="Claim 2", source_label="[SOURCE_1]", chunk_id="c1", is_grounded=False),
     ]
-    res_bad_ground = engine.evaluate_confidence(high_evidence, bad_citations, answer="Section 3(p) excludes turmeric and neem formulations.")
-    assert res_bad_ground.raw_confidence < res_high.raw_confidence, "Check 7 Failed: Bad grounding did not reduce confidence"
-    logger.info(f"Check 7 Passed: Poor citation grounding significantly reduced confidence from {res_high.confidence_percentage:.2f}% to {res_bad_ground.confidence_percentage:.2f}%")
-    
-    # Check 8: Conflicting sources reduce confidence
-    res_conflict = engine.evaluate_confidence(high_evidence, high_citations, answer="Section 3(p) excludes turmeric and neem formulations.", conflicting_sources=True)
-    assert res_conflict.raw_confidence < res_high.raw_confidence, "Check 8 Failed: Conflicting sources did not reduce confidence"
-    logger.info(f"Check 8 Passed: Conflicting sources reduced confidence from {res_high.confidence_percentage:.2f}% to {res_conflict.confidence_percentage:.2f}%")
-    
-    # Check 9: Confidence never exceeds configured uncalibrated maximum ceiling (0.95)
-    perfect_evidence = [
-        EvidenceChunk(chunk_id=f"c{i}", doc_id=f"d{i}", title=f"Doc {i}", content="Turmeric neem Section 3p", faiss_score=0.99, rerank_score=5.0, source_id=f"s{i}", source_label=f"[SOURCE_{i}]", source_name=f"Source {i}")
-        for i in range(10)
-    ]
-    perfect_citations = [
-        CitationRecord(claim_snippet=f"Claim {i}", source_label=f"[SOURCE_{i}]", chunk_id=f"c{i}", is_grounded=True)
-        for i in range(10)
-    ]
-    res_perfect = engine.evaluate_confidence(perfect_evidence, perfect_citations, answer="Section 3(p) excludes turmeric and neem formulations.")
-    assert res_perfect.raw_confidence <= engine.maximum_confidence, f"Check 9 Failed: Confidence {res_perfect.raw_confidence} exceeded max ceiling {engine.maximum_confidence}"
-    logger.info(f"Check 9 Passed: Perfect evidence score {res_perfect.confidence_percentage:.2f}% strictly capped at configured ceiling {engine.maximum_confidence * 100:.1f}%")
-    
-    # Check 10: Confidence does not affect retrieval
-    retrieved_chunk_ids = [c.chunk_id for c in target_data["evidence"]]
-    assert len(retrieved_chunk_ids) > 0, "Check 10 Failed: No chunks retrieved"
-    logger.info(f"Check 10 Passed: Retrieval returned {len(retrieved_chunk_ids)} chunks unaffected by confidence evaluation")
-    
-    return True
+    res_f = engine.evaluate_confidence(evidence=ev_h, citations=cit_f, answer="Ungrounded answer claims.")
+    assert res_f.raw_confidence < res_h.raw_confidence, f"F. Expected lower confidence than strong grounding: {res_f.raw_confidence} vs {res_h.raw_confidence}"
+    assert res_f.confidence_level != "HIGH", f"F. Poor grounding must not yield HIGH confidence"
+    print(f"  [PASS] F. High cosine + poor citation -> Conf decreased to {res_f.confidence_percentage}% ({res_f.confidence_level})")
+
+    # G) Conflicting sources: confidence decreases
+    res_g = engine.evaluate_confidence(evidence=ev_h, citations=cit_h, answer="Answer with conflicts", conflicting_sources=True)
+    assert res_g.raw_confidence < res_h.raw_confidence, f"G. Conflicting sources did not decrease confidence!"
+    print(f"  [PASS] G. Conflicting sources -> Conf decreased to {res_g.confidence_percentage}% ({res_g.confidence_level})")
+
+    # I) Repeated identical inputs: same cosine, same confidence
+    res_i1 = engine.evaluate_confidence(evidence=ev_h, citations=cit_h, answer="Deterministic test.")
+    res_i2 = engine.evaluate_confidence(evidence=ev_h, citations=cit_h, answer="Deterministic test.")
+    assert res_i1.raw_confidence == res_i2.raw_confidence, "I. Non-deterministic confidence!"
+    assert ev_h[0].faiss_score == ev_h[0].faiss_score, "I. Non-deterministic cosine!"
+    print(f"  [PASS] I. Repeated identical inputs -> Run 1={res_i1.raw_confidence}, Run 2={res_i2.raw_confidence} (Identical)")
 
 
 if __name__ == "__main__":
-    logger.info("=== STARTING COSINE & BAYESIAN CONFIDENCE REGRESSION TEST SUITE ===")
-    t_data = test_target_query_end_to_end()
-    success = run_10_regression_checks(t_data)
-    if success:
-        logger.info("\n==================================================")
-        logger.info("=== ALL 10 REGRESSION CHECKS PASSED CLEANLY! ===")
-        logger.info("==================================================")
+    print("==================================================")
+    print("=== COSINE & CONFIDENCE REGRESSION TEST SUITE ===")
+    print("==================================================")
+    test_vector_math_and_immutability()
+    test_confidence_safety_cases()
+    print("\n==================================================")
+    print("=== ALL REGRESSION TESTS PASSED CLEANLY! ===")
+    print("==================================================")

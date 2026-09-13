@@ -106,6 +106,24 @@ class IPSAKTIService:
         # Execute full pipeline
         response = self.coordinator.execute(request)
 
+        if self.db:
+            try:
+                import json
+                agents_json = json.dumps([a.value for a in response.agents_invoked]) if response.agents_invoked else "[]"
+                confidence_score = response.confidence.score if response.confidence else None
+                conn = self.db.connection
+                with conn:
+                    conn.execute(
+                        """
+                        UPDATE queries
+                        SET agents_invoked = ?, is_abstention = ?, confidence_score = ?
+                        WHERE query_id = ?
+                        """,
+                        (agents_json, 1 if response.is_abstention else 0, confidence_score, str(request.query_id)),
+                    )
+            except Exception as exc:
+                logger.debug(f"Local SQLite query update failed: {exc}")
+
         if response.is_abstention and self.db:
             try:
                 conn = self.db.connection

@@ -7,11 +7,28 @@ const LANG_CODE_MAP: Record<string, string> = {
   hi: 'hi-IN',
   te: 'te-IN',
   kn: 'kn-IN',
+  ml: 'ml-IN',
   'en-in': 'en-IN',
   'hi-in': 'hi-IN',
   'te-in': 'te-IN',
   'kn-in': 'kn-IN',
+  'ml-in': 'ml-IN',
 };
+
+/**
+ * Detect language code from native Unicode script ranges in text.
+ */
+export function detectScriptFromText(text: string): string | null {
+  if (!text) return null;
+  if (/[\u0900-\u097f]/.test(text)) return 'hi';
+  if (/[\u0c00-\u0c7f]/.test(text)) return 'te';
+  if (/[\u0c80-\u0cff]/.test(text)) return 'kn';
+  if (/[\u0d00-\u0d7f]/.test(text)) return 'ml';
+  if (/[\u0b80-\u0bff]/.test(text)) return 'ta';
+  if (/[\u0980-\u09ff]/.test(text)) return 'bn';
+  if (/[\u0a80-\u0aff]/.test(text)) return 'gu';
+  return null;
+}
 
 /**
  * Validate that text contains native script characters for the requested language.
@@ -27,6 +44,9 @@ export function validateScriptForLanguage(text: string, lang: string): boolean {
   }
   if (cleanLang === 'hi' || cleanLang === 'hi-in') {
     return /[\u0900-\u097f]/.test(text);
+  }
+  if (cleanLang === 'ml' || cleanLang === 'ml-in') {
+    return /[\u0d00-\u0d7f]/.test(text);
   }
   return true; // English requires no script validation
 }

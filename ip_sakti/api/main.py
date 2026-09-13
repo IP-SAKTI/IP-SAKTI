@@ -206,6 +206,7 @@ async def process_query(payload: APIQueryRequest) -> APIQueryResponse:
             is_abstention=final_resp.is_abstention,
             confidence=conf_score,
             cosine_similarity=cosine_sim,
+            raw_cosine_similarity=cosine_sim,
             confidence_score=conf_score,
             confidence_percentage=conf_pct,
             confidence_level=conf_lvl,
@@ -272,6 +273,9 @@ async def text_to_speech(payload: TTSRequestPayload) -> Response:
         tld = "com"
     elif lang in ["hi", "hi-in"]:
         target_lang = "hi"
+        tld = "com"
+    elif lang in ["ml", "ml-in"]:
+        target_lang = "ml"
         tld = "com"
     else:
         target_lang = "en"

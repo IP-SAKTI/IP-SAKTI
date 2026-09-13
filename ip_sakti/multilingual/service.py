@@ -154,16 +154,18 @@ class MultilingualService:
         normalisation = self._normalizer.normalise(request.raw_query)
 
         # ── Step 3: Query translation ─────────────────────────────────────────
+        translation_status = "success"
         try:
             query_translation = self._translator.translate_to_retrieval_language(
                 text=normalisation.normalised,
                 source_language=effective_language,
             )
         except Exception as exc:
-            logger.warning(
-                "Query translation failed, falling back to original query text",
+            logger.error(
+                "Query translation failed for non-English query",
                 extra={"error": str(exc), "effective_language": effective_language},
             )
+            translation_status = "failed"
             from ip_sakti.models.multilingual import TranslationResult
             query_translation = TranslationResult(
                 source_language=effective_language,
@@ -173,6 +175,10 @@ class MultilingualService:
                 was_translated=False,
             )
 
+        logger.info(f"[LANGUAGE]\ndetected = {effective_language}")
+        logger.info(f"[TRANSLATION INPUT]\n{request.raw_query}")
+        logger.info(f"[TRANSLATION OUTPUT]\n{query_translation.translated_text}")
+
         context = MultilingualContext(
             query_id=request.query_id,
             raw_query=request.raw_query,
@@ -181,6 +187,7 @@ class MultilingualService:
             query_translation=query_translation,
             response_translation=None,
             effective_language=effective_language,
+            translation_status=translation_status,
         )
 
         logger.info(
@@ -189,6 +196,7 @@ class MultilingualService:
                 "query_id": str(request.query_id),
                 "detected_language": effective_language,
                 "was_translated": query_translation.was_translated,
+                "translation_status": translation_status,
             },
         )
         return context

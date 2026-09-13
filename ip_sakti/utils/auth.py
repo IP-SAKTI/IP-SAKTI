@@ -61,11 +61,16 @@ class AuthService:
         terms_accepted: bool = True,
     ) -> Tuple[Optional[Dict[str, Any]], Optional[str]]:
         """
-        Register a new user via Supabase Auth or local SQLite fallback.
+        Register a new user via local SQLite db_manager or Supabase Auth.
         """
+        if not name or not name.strip():
+            return None, "Name is required."
+        if not email or not email.strip() or "@" not in email or "." not in email:
+            return None, "Please enter a valid email address."
+        if not password or len(password) < 6:
+            return None, "Password must be at least 6 characters long."
         if password != confirm_password:
             return None, "Passwords do not match."
-
         # ── SQLite-only mode (Supabase not configured, local DB manager present) ──
         if self.db_manager and not self.supabase_auth.is_supabase_enabled:
             if not name or not name.strip():
@@ -159,7 +164,6 @@ class AuthService:
         if user:
             return user, None
 
-        # ── SQLite fallback when Supabase fails and local db exists ───────────
         if self.db_manager:
             try:
                 conn = self.db_manager.connection

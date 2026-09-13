@@ -80,7 +80,7 @@ class BayesianConfidenceEngine:
         weights_cfg = conf_cfg.get("evidence_weights", {})
 
         self.prior = prior if prior is not None else float(conf_cfg.get("prior", 0.50))
-        self.max_confidence = float(conf_cfg.get("max_confidence", 0.95))
+        self.max_confidence = float(conf_cfg.get("max_confidence", 0.93))
         self.high_threshold = high_threshold if high_threshold is not None else float(thresh_cfg.get("high", 0.85))
         self.medium_threshold = medium_threshold if medium_threshold is not None else float(thresh_cfg.get("medium", 0.65))
         self.abstain_threshold = abstain_threshold if abstain_threshold is not None else float(thresh_cfg.get("abstain", 0.50))
@@ -109,10 +109,11 @@ class BayesianConfidenceEngine:
     # Signal Processing & Deterministic Normalization
     # -------------------------------------------------------------------------
 
-    def normalize_cosine_similarity(self, evidence: Sequence[EvidenceChunk]) -> float:
+    def normalize_cosine_for_confidence(self, evidence: Sequence[EvidenceChunk]) -> float:
         """
-        Normalize FAISS Cosine Similarity to [0.0, 1.0].
-        Reuses existing FAISS scores.
+        Transform FAISS Cosine Similarity into a normalized confidence signal [0.0, 1.0].
+        This method is ONLY used internally by the confidence engine.
+        It NEVER mutates or alters the raw FAISS cosine similarity.
         """
         if not evidence:
             return 0.0
@@ -120,12 +121,17 @@ class BayesianConfidenceEngine:
         if not scores:
             return 0.50
         max_score = max(scores)
-        # Cosine similarity in FAISS is typically in [0.0, 1.0] for normalized vectors
+        # Cosine similarity in FAISS is in [0.0, 1.0] for unit-normalized vectors
         return max(0.0, min(1.0, float(max_score)))
+
+    def normalize_cosine_similarity(self, evidence: Sequence[EvidenceChunk]) -> float:
+        """Legacy alias for normalize_cosine_for_confidence."""
+        return self.normalize_cosine_for_confidence(evidence)
 
     def normalize_reranker_score(self, evidence: Sequence[EvidenceChunk]) -> float:
         """
-        Convert Cross-Encoder logit scores to [0.0, 1.0] via sigmoid transform.
+        Convert Cross-Encoder logit scores to [0.0, 1.0] via standard sigmoid transform.
+        Does not apply artificial score boosting.
         """
         if not evidence:
             return 0.0
@@ -133,8 +139,8 @@ class BayesianConfidenceEngine:
         if not scores:
             return 0.50
         max_score = max(scores)
-        # Sigmoid with +4.0 shift (calibrated for MS-MARCO Cross-Encoder logits)
-        prob = 1.0 / (1.0 + math.exp(-max(-10.0, min(10.0, max_score + 4.0))))
+        # Standard sigmoid on raw cross-encoder logits
+        prob = 1.0 / (1.0 + math.exp(-max(-10.0, min(10.0, max_score))))
         return max(0.0, min(1.0, float(prob)))
 
     def calculate_citation_grounding(
@@ -142,16 +148,13 @@ class BayesianConfidenceEngine:
     ) -> float:
         """
         Calculate fraction of grounded answer claims: supported_claims / total_claims.
-        If no claims are cited:
-          - Default 1.0 if evidence count >= 2
-          - Default 0.5 if evidence count < 2
         """
         if citations:
             grounded = sum(1 for c in citations if c.is_grounded)
             return float(grounded / len(citations))
         
-        # Safe fallback if answer has no explicit citation tags
-        return 0.60 if len(evidence) >= 2 else 0.40
+        # Baseline fallback if answer has no explicit citation tags
+        return 0.65 if len(evidence) >= 2 else 0.45
 
     def calculate_answer_consistency(
         self,
@@ -160,7 +163,8 @@ class BayesianConfidenceEngine:
         citations: Sequence[CitationRecord],
     ) -> float:
         """
-        Measure textual/semantic overlap between generated answer and evidence chunks.
+        Measure textual/semantic token overlap ratio between generated answer and evidence.
+        Pure token overlap evaluation — does NOT double-count citation grounding.
         """
         if not answer or not evidence:
             return 0.0
@@ -184,11 +188,7 @@ class BayesianConfidenceEngine:
 
         overlap_count = len(content_answer_tokens.intersection(evidence_tokens))
         overlap_ratio = overlap_count / len(content_answer_tokens)
-
-        # Incorporate citation grounding baseline
-        grounding_ratio = self.calculate_citation_grounding(citations, evidence)
-        consistency = 0.5 * min(1.0, overlap_ratio * 1.5) + 0.5 * grounding_ratio
-        return max(0.0, min(1.0, float(consistency)))
+        return max(0.0, min(1.0, float(overlap_ratio)))
 
     def calculate_source_agreement(
         self, evidence: Sequence[EvidenceChunk], conflicting: bool = False
@@ -203,7 +203,6 @@ class BayesianConfidenceEngine:
         if conflicting:
             return 0.20
 
-        # Unique parent source IDs or doc IDs
         unique_sources = set()
         for chunk in evidence:
             s_id = chunk.source_id or chunk.doc_id or chunk.chunk_id
@@ -212,11 +211,11 @@ class BayesianConfidenceEngine:
 
         count = len(unique_sources)
         if count >= 3:
-            return 1.0
+            return 0.90
         elif count == 2:
-            return 0.85
+            return 0.75
         elif count == 1:
-            return 0.70
+            return 0.60
         return 0.50
 
     # -------------------------------------------------------------------------
@@ -241,22 +240,30 @@ class BayesianConfidenceEngine:
         evidence_list = list(evidence)
         citation_list = list(citations)
 
+        # Extract raw top FAISS cosine score for explicit reporting
+        raw_cosine = 0.0
+        if evidence_list:
+            scores = [ev.faiss_score for ev in evidence_list if ev.faiss_score is not None]
+            if scores:
+                raw_cosine = float(max(scores))
+
         # 1. Compute Individual Normalized Signals
-        sig_cosine = self.normalize_cosine_similarity(evidence_list)
+        sig_cosine = self.normalize_cosine_for_confidence(evidence_list)
         sig_reranker = self.normalize_reranker_score(evidence_list)
         sig_grounding = self.calculate_citation_grounding(citation_list, evidence_list)
         sig_consistency = self.calculate_answer_consistency(answer, evidence_list, citation_list)
         sig_agreement = self.calculate_source_agreement(evidence_list, conflicting=conflicting_sources)
 
         signals = {
-            "cosine_similarity": round(sig_cosine, 4),
+            "raw_cosine_similarity": round(raw_cosine, 4),
+            "normalized_cosine_evidence": round(sig_cosine, 4),
             "reranker_relevance": round(sig_reranker, 4),
             "citation_grounding": round(sig_grounding, 4),
             "answer_consistency": round(sig_consistency, 4),
             "source_agreement": round(sig_agreement, 4),
         }
 
-        # Handle zero evidence case
+        # Handle zero evidence case (CASE E)
         if not evidence_list:
             return BayesianConfidenceResult(
                 raw_confidence=0.0,
@@ -273,20 +280,27 @@ class BayesianConfidenceEngine:
         prior_clamped = max(eps, min(1.0 - eps, self.prior))
         l_0 = math.log(prior_clamped / (1.0 - prior_clamped))
 
-        # Log-likelihood ratio updates from signals (clamped to realistic evidence bounds to prevent saturation)
+        # Log-likelihood ratio updates weighted by YAML configuration
         delta_l = 0.0
-        for sig_name, sig_val in signals.items():
+        sig_map = {
+            "cosine_similarity": sig_cosine,
+            "reranker_relevance": sig_reranker,
+            "citation_grounding": sig_grounding,
+            "answer_consistency": sig_consistency,
+            "source_agreement": sig_agreement,
+        }
+
+        for sig_name, sig_val in sig_map.items():
             w = self.weights.get(sig_name, 0.20)
-            val_clamped = max(0.12, min(0.88, sig_val))
-            # Log-odds contribution relative to neutral 0.5 baseline
+            val_clamped = max(0.05, min(0.95, sig_val))
             llr = math.log(val_clamped / (1.0 - val_clamped))
             delta_l += w * llr
 
-        # Hard penalty for poor citation grounding (CASE 4 safety requirement)
+        # Hard penalty for poor citation grounding (CASE C)
         if citation_list and sig_grounding < 0.40:
-            delta_l -= 1.5  # Strong negative update if claims are ungrounded
+            delta_l -= 1.5
 
-        # Hard penalty for conflicting sources (CASE 5 safety requirement)
+        # Hard penalty for conflicting sources (CASE D)
         if conflicting_sources:
             delta_l -= 1.2
 
@@ -319,17 +333,18 @@ class BayesianConfidenceEngine:
                 f"with grounded evidence and source support."
             )
 
-        # 5. Logging (Development Mode)
-        logger.debug(
-            "Bayesian Confidence Evaluated",
-            extra={
-                "prior": self.prior,
-                "raw_confidence": raw_confidence,
-                "confidence_percentage": confidence_pct,
-                "confidence_level": confidence_level,
-                "should_abstain": should_abstain,
-                "signals": signals,
-            },
+        # 5. Debug Information Logging (Section 10 Requirement)
+        logger.info(
+            f"[CONFIDENCE_DEBUG] "
+            f"RAW COSINE: {raw_cosine:.4f} | "
+            f"NORMALIZED COSINE EVIDENCE: {sig_cosine:.4f} | "
+            f"RERANKER: {sig_reranker:.4f} | "
+            f"CITATION GROUNDING: {sig_grounding:.4f} | "
+            f"ANSWER CONSISTENCY: {sig_consistency:.4f} | "
+            f"SOURCE AGREEMENT: {sig_agreement:.4f} | "
+            f"WEIGHTS: {self.weights} | "
+            f"COMBINED DELTA_L: {delta_l:.4f} | "
+            f"FINAL CONFIDENCE: {raw_confidence:.4f} ({confidence_pct}% {confidence_level})"
         )
 
         return BayesianConfidenceResult(

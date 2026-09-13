@@ -30,6 +30,8 @@ class SafeAbstentionHandler:
 
     def __init__(self, db_manager: Any = None) -> None:
         """Initialise abstention handler with Supabase client."""
+        self.db = db_manager
+        self.db_manager = db_manager
         self.supabase_client = SupabaseClient()
 
     def handle_abstention(
@@ -62,6 +64,27 @@ class SafeAbstentionHandler:
         )
 
         now_iso = datetime.now(timezone.utc).isoformat()
+
+        if self.db:
+            try:
+                conn = self.db.connection
+                with conn:
+                    conn.execute(
+                        """
+                        INSERT OR IGNORE INTO queries (query_id, raw_query, is_abstention, created_at)
+                        VALUES (?, ?, 1, ?)
+                        """,
+                        (str(record.query_id), "Abstention Escalation", now_iso),
+                    )
+                    conn.execute(
+                        """
+                        INSERT OR REPLACE INTO escalations (query_id, agent_type, reason, escalated_at)
+                        VALUES (?, ?, ?, ?)
+                        """,
+                        (str(record.query_id), record.agent_type.value if record.agent_type else None, record.reason, now_iso),
+                    )
+            except Exception as exc:
+                logger.debug(f"Local SQLite escalation log failed: {exc}")
 
         if self.supabase_client.is_configured:
             try:

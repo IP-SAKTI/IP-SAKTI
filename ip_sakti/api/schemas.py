@@ -70,6 +70,9 @@ class APIQueryResponse(BaseModel):
     cosine_similarity: Optional[float] = Field(
         default=None, description="Actual cosine similarity score from FAISS dense vector search."
     )
+    raw_cosine_similarity: Optional[float] = Field(
+        default=None, description="Raw unmutated cosine similarity score from FAISS dense vector search."
+    )
     confidence_score: Optional[float] = Field(
         default=None, description="Bayesian raw confidence probability (0.0 to 1.0)."
     )

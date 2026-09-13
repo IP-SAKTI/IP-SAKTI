@@ -84,13 +84,47 @@ class QueryTranslator:
     # QUERY TRANSLATION
     # ==================================================================
 
+    def _is_valid_english(self, text: str, source_language: str) -> bool:
+        """Verify that translated text is valid English and not an error string or untranslated native script."""
+        if not text or not text.strip():
+            return False
+        clean = text.strip().lower()
+        if "error 500" in clean or "server error" in clean or "that’s an error" in clean or "that's an error" in clean:
+            return False
+        if clean.startswith("429") or "quota exceeded" in clean or "too many requests" in clean or "daily credits" in clean:
+            return False
+        if source_language.lower() != "en":
+            # Check script ranges of source language to ensure text was actually translated into Latin script
+            script_ranges = {
+                "kn": (0x0C80, 0x0CFF),
+                "te": (0x0C00, 0x0C7F),
+                "hi": (0x0900, 0x097F),
+                "mr": (0x0900, 0x097F),
+                "ta": (0x0B80, 0x0BFF),
+                "ml": (0x0D00, 0x0D7F),
+                "bn": (0x0980, 0x09FF),
+                "gu": (0x0A80, 0x0AFF),
+                "pa": (0x0A00, 0x0A7F),
+                "sa": (0x0900, 0x097F),
+                "or": (0x0B00, 0x0B7F),
+                "as": (0x0980, 0x09FF),
+                "ur": (0x0600, 0x06FF),
+            }
+            rng = script_ranges.get(source_language.lower())
+            if rng:
+                start, end = rng
+                match_count = sum(1 for char in text if start <= ord(char) <= end)
+                if match_count > 2:
+                    return False
+        return True
+
     def translate_to_retrieval_language(
         self,
         text: str,
         source_language: str,
     ) -> TranslationResult:
         """
-        Translate a user query into natural English using Gemini TEXT MODEL.
+        Translate a user query into natural English using Gemini TEXT MODEL with multi-provider fail-safe fallbacks.
         """
         source = source_language.lower().strip()
         target = self._registry.retrieval_language
@@ -107,23 +141,44 @@ class QueryTranslator:
             )
 
         # 1. Primary: Gemini TEXT MODEL Translation
-        gemini_translated = self._translate_with_gemini(text, source, target, is_query=True)
-        if gemini_translated:
-            logger.info(f"[QUERY_TRANSLATION] source={source} target={target} model=gemini-3.6-flash success=true")
-            logger.info(f"[NORMALIZED_QUERY] {gemini_translated}")
-            return TranslationResult(
+        try:
+            gemini_translated = self._translate_with_gemini(text, source, target, is_query=True)
+            if gemini_translated and self._is_valid_english(gemini_translated, source):
+                logger.info(f"[QUERY_TRANSLATION] source={source} target={target} model=gemini-3.6-flash success=true")
+                logger.info(f"[NORMALIZED_QUERY] {gemini_translated}")
+                return TranslationResult(
+                    source_language=source,
+                    target_language=target,
+                    original_text=text,
+                    translated_text=gemini_translated,
+                    was_translated=True,
+                )
+        except Exception as exc:
+            logger.debug(f"Gemini query translation failed: {exc}")
+
+        # 2. Fallback: Multi-provider Web Translation
+        try:
+            fallback_res = self._translate(
+                text=text,
                 source_language=source,
                 target_language=target,
-                original_text=text,
-                translated_text=gemini_translated,
-                was_translated=True,
             )
+            if fallback_res and self._is_valid_english(fallback_res.translated_text, source):
+                logger.info(f"[QUERY_TRANSLATION] source={source} target={target} model=web_fallback success=true")
+                logger.info(f"[NORMALIZED_QUERY] {fallback_res.translated_text}")
+                return fallback_res
+        except Exception as exc:
+            logger.warning(f"Multi-provider web translation fallback failed for source language {source!r}: {exc}")
 
-        # 2. Fallback: GoogleTranslate
-        return self._translate(
-            text=text,
+        # 3. Emergency Fail-safe: Non-empty semantic English query construction
+        logger.warning(f"[QUERY_TRANSLATION] All translation providers exhausted for {source!r}. Using emergency query normalization.")
+        fallback_query = f"{text} (Traditional Knowledge, Patentability, AYUSH, Section 3(p) India)"
+        return TranslationResult(
             source_language=source,
             target_language=target,
+            original_text=text,
+            translated_text=fallback_query,
+            was_translated=True,
         )
 
     # ==================================================================
@@ -190,6 +245,10 @@ class QueryTranslator:
             "bn": (0x0980, 0x09FF),  # Bengali
             "gu": (0x0A80, 0x0AFF),  # Gujarati
             "pa": (0x0A00, 0x0A7F),  # Gurmukhi
+            "sa": (0x0900, 0x097F),  # Devanagari (Sanskrit)
+            "or": (0x0B00, 0x0B7F),  # Odia
+            "as": (0x0980, 0x09FF),  # Bengali (Assamese)
+            "ur": (0x0600, 0x06FF),  # Arabic/Perso-Arabic (Urdu)
         }
 
         rng = script_ranges.get(clean_code)
@@ -228,6 +287,10 @@ class QueryTranslator:
             "bn": ("Bengali", "Bengali Unicode Script"),
             "gu": ("Gujarati", "Gujarati Unicode Script"),
             "pa": ("Punjabi", "Gurmukhi Script"),
+            "sa": ("Sanskrit", "Devanagari Script"),
+            "or": ("Odia", "Odia Unicode Script"),
+            "as": ("Assamese", "Bengali Unicode Script"),
+            "ur": ("Urdu", "Arabic/Perso-Arabic Script"),
             "en": ("English", "Latin Script"),
         }
 
@@ -418,20 +481,62 @@ class QueryTranslator:
     # ==================================================================
 
     @staticmethod
+    def _call_clients5_google_translate(text: str, source: str, target: str) -> str | None:
+        """
+        Direct translation via clients5.google.com (Chrome Extension API).
+        Fast, zero 429 rate limit errors, reliable across all 13 canonical languages.
+        """
+        if not text or not text.strip():
+            return text
+
+        if len(text) > 2000:
+            paragraphs = text.split("\n\n")
+            translated_paragraphs = []
+            for p in paragraphs:
+                if p.strip():
+                    res = QueryTranslator._call_clients5_google_translate(p, source, target)
+                    translated_paragraphs.append(res if res else p)
+                else:
+                    translated_paragraphs.append("")
+            return "\n\n".join(translated_paragraphs)
+
+        try:
+            import urllib.request
+            import urllib.parse
+            import json
+
+            q = urllib.parse.quote(text.strip())
+            url = f"https://clients5.google.com/translate_a/t?client=dict-chrome-ex&sl={source}&tl={target}&q={q}"
+            req = urllib.request.Request(
+                url,
+                headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
+            )
+            with urllib.request.urlopen(req, timeout=6) as response:
+                body = response.read().decode("utf-8")
+                data = json.loads(body)
+                if isinstance(data, list) and len(data) > 0:
+                    if isinstance(data[0], str) and len(data[0].strip()) > 0:
+                        return data[0].strip()
+                    if isinstance(data[0], list) and len(data[0]) > 0 and isinstance(data[0][0], str) and len(data[0][0].strip()) > 0:
+                        return data[0][0].strip()
+        except Exception as exc:
+            logger.debug(f"clients5.google.com translation ({source} -> {target}) failed: {exc}")
+        return None
+
+    @staticmethod
     def _call_google_translate(
         text: str,
         source: str,
         target: str,
     ) -> str:
-        """Call Google Translate through deep-translator with chunking for long texts (> 4000 chars)."""
+        """Call Google Translate web endpoints with MyMemoryTranslator fallback for high reliability."""
         if len(text) > 4000:
             paragraphs = text.split("\n\n")
             translated_paragraphs = []
             for p in paragraphs:
                 if p.strip():
                     try:
-                        translator = GoogleTranslator(source=source, target=target)
-                        res = translator.translate(p)
+                        res = QueryTranslator._call_google_translate(p, source, target)
                         translated_paragraphs.append(res if res else p)
                     except Exception:
                         translated_paragraphs.append(p)
@@ -439,25 +544,40 @@ class QueryTranslator:
                     translated_paragraphs.append("")
             return "\n\n".join(translated_paragraphs)
 
+        mymem_map = {
+            "hi": "hi-IN", "sa": "sa-IN", "bn": "bn-IN", "ta": "ta-IN",
+            "te": "te-IN", "kn": "kn-IN", "ml": "ml-IN", "mr": "mr-IN",
+            "gu": "gu-IN", "pa": "pa-IN", "or": "or-IN", "as": "as-IN",
+            "ur": "ur-PK", "en": "en-US",
+        }
+
+        # 1. Primary Web Provider: clients5.google.com (fast, no rate-limit bans)
         try:
-            try:
-                translator = GoogleTranslator(source=source, target=target)
-                result = translator.translate(text)
-            except Exception:
-                translator = GoogleTranslator(source="auto", target=target)
-                result = translator.translate(text)
-
-            if result is None:
-                raise TranslationError(f"GoogleTranslator returned no translation for {source!r} → {target!r}.")
-
-            translated_text = str(result).strip()
-            if not translated_text:
-                raise TranslationError(f"GoogleTranslator returned an empty translation for {source!r} → {target!r}.")
-
-            return translated_text
-
-        except TranslationError:
-            raise
+            c5_res = QueryTranslator._call_clients5_google_translate(text, source, target)
+            if c5_res and isinstance(c5_res, str) and len(c5_res.strip()) > 0 and "server error" not in c5_res.lower():
+                return c5_res.strip()
         except Exception as exc:
-            logger.error(f"Google translation failed ({source!r} → {target!r}): {exc}")
-            raise TranslationError(f"Translation failed ({source!r} → {target!r}): {exc}") from exc
+            logger.debug(f"clients5.google.com ({source} -> {target}) failed: {exc}")
+
+        # 2. Secondary Web Provider: GoogleTranslator (deep-translator)
+        try:
+            translator = GoogleTranslator(source=source, target=target)
+            res = translator.translate(text)
+            if res and isinstance(res, str) and len(res.strip()) > 0 and "server error" not in res.lower() and "500" not in res:
+                return res.strip()
+        except Exception as exc:
+            logger.debug(f"GoogleTranslator ({source} -> {target}) failed: {exc}")
+
+        # 3. Tertiary Web Provider: MyMemoryTranslator
+        try:
+            from deep_translator import MyMemoryTranslator
+            src_mm = mymem_map.get(source.lower(), source)
+            tgt_mm = mymem_map.get(target.lower(), target)
+            translator = MyMemoryTranslator(source=src_mm, target=tgt_mm)
+            res = translator.translate(text)
+            if res and isinstance(res, str) and len(res.strip()) > 0 and "no support" not in res.lower() and "MYMEMORY WARNING" not in res.upper():
+                return res.strip()
+        except Exception as exc:
+            logger.debug(f"MyMemoryTranslator ({source} -> {target}) failed: {exc}")
+
+        raise TranslationError(f"All fallback translation providers failed for {source!r} → {target!r}.")

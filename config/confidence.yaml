@@ -5,7 +5,7 @@
 
 confidence:
   prior: 0.50
-  max_confidence: 0.95
+  max_confidence: 0.93
 
   thresholds:
     high: 0.85

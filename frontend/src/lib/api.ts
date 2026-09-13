@@ -12,6 +12,11 @@ export interface EvidenceItem {
   jurisdiction?: string;
   source_url?: string;
   archive_url?: string;
+  faiss_score?: number;
+  bm25_score?: number;
+  rrf_score?: number;
+  rerank_score?: number;
+  search_mode?: string;
 }
 
 export interface APIQueryResponse {
@@ -20,6 +25,7 @@ export interface APIQueryResponse {
   answer: string;
   is_abstention: boolean;
   cosine_similarity?: number;
+  raw_cosine_similarity?: number;
   confidence?: number;
   confidence_score?: number;
   confidence_percentage?: number;

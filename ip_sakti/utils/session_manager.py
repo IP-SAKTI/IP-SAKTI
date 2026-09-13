@@ -54,6 +54,7 @@ class SessionManager:
     """
 
     def __init__(self, db_manager: Any = None) -> None:
+        self.db_manager = db_manager
         self._sessions: Dict[str, Dict[str, Any]] = {}
 
     def create_session(self, user_id: str) -> str:
@@ -61,12 +62,26 @@ class SessionManager:
         raw_token = _make_token()
         signature = _sign_token(raw_token)
         signed_token = f"{raw_token}.{signature}"
+        created_at = _now_iso()
+        expires_at = _expiry_iso()
 
         self._sessions[raw_token] = {
             "user_id": user_id,
-            "created_at": _now_iso(),
-            "expires_at": _expiry_iso(),
+            "created_at": created_at,
+            "expires_at": expires_at,
         }
+
+        if self.db_manager:
+            try:
+                conn = self.db_manager.connection
+                with conn:
+                    conn.execute(
+                        "INSERT INTO user_sessions (token, user_id, created_at, expires_at) VALUES (?, ?, ?, ?)",
+                        (raw_token, user_id, created_at, expires_at),
+                    )
+            except Exception as exc:
+                logger.warning(f"Failed to persist session to DB: {exc}")
+
         logger.info("Created session", extra={"user_id": user_id})
         return signed_token
 
@@ -85,15 +100,61 @@ class SessionManager:
             logger.warning("Session token HMAC verification failed")
             return None
 
-        sess = self._sessions.get(raw_token)
-        if not sess:
-            return None
+        user_id = None
+        created_at = None
+
+        if self.db_manager:
+            try:
+                conn = self.db_manager.connection
+                cur = conn.execute(
+                    "SELECT user_id, created_at, expires_at FROM user_sessions WHERE token = ?",
+                    (raw_token,),
+                )
+                row = cur.fetchone()
+                if row:
+                    expires_at_str = row["expires_at"]
+                    if expires_at_str:
+                        exp_dt = datetime.fromisoformat(expires_at_str)
+                        if exp_dt.tzinfo is None:
+                            exp_dt = exp_dt.replace(tzinfo=timezone.utc)
+                        if exp_dt < datetime.now(timezone.utc):
+                            return None
+                    user_id = row["user_id"]
+                    created_at = row["created_at"]
+            except Exception as exc:
+                logger.warning(f"Failed to query session from DB: {exc}")
+
+        if not user_id:
+            sess = self._sessions.get(raw_token)
+            if not sess:
+                return None
+            user_id = sess["user_id"]
+            created_at = sess["created_at"]
+
+        name = f"User {user_id[:8]}"
+        email = f"{user_id[:8]}@ipsakti.gov.in"
+
+        if self.db_manager and user_id:
+            try:
+                conn = self.db_manager.connection
+                cur = conn.execute(
+                    "SELECT id, email, full_name FROM users WHERE id = ?",
+                    (user_id,),
+                )
+                urow = cur.fetchone()
+                if urow:
+                    if urow["full_name"]:
+                        name = urow["full_name"]
+                    if urow["email"]:
+                        email = urow["email"]
+            except Exception as exc:
+                logger.warning(f"Failed to query user details for session: {exc}")
 
         return {
-            "id": sess["user_id"],
-            "name": f"User {sess['user_id'][:8]}",
-            "email": f"{sess['user_id'][:8]}@ipsakti.gov.in",
-            "created_at": sess["created_at"],
+            "id": user_id,
+            "name": name,
+            "email": email,
+            "created_at": created_at,
         }
 
     def revoke_session(self, signed_token: str) -> None:
@@ -104,7 +165,37 @@ class SessionManager:
         raw_token = parts[0]
         self._sessions.pop(raw_token, None)
 
+        if self.db_manager:
+            try:
+                conn = self.db_manager.connection
+                with conn:
+                    conn.execute("DELETE FROM user_sessions WHERE token = ?", (raw_token,))
+            except Exception as exc:
+                logger.warning(f"Failed to revoke session in DB: {exc}")
+
     def purge_expired_sessions(self) -> int:
         """Delete all expired sessions."""
-        return 0
+        purged_count = 0
+        now_str = _now_iso()
+
+        expired_memory = [
+            t for t, s in self._sessions.items() if s.get("expires_at", "") < now_str
+        ]
+        for t in expired_memory:
+            self._sessions.pop(t, None)
+
+        if self.db_manager:
+            try:
+                conn = self.db_manager.connection
+                with conn:
+                    cur = conn.execute(
+                        "DELETE FROM user_sessions WHERE expires_at < ?",
+                        (now_str,),
+                    )
+                    purged_count = cur.rowcount
+            except Exception as exc:
+                logger.warning(f"Failed to purge expired sessions in DB: {exc}")
+
+        return purged_count
+
 
