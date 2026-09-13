@@ -133,7 +133,12 @@ class SupabaseClient:
             logger.warning(f"Error signing out from Supabase: {exc}")
             return False
 
-    def sign_in_with_otp(self, email: str, redirect_to: str = "http://localhost:3000/auth/callback") -> bool:
+    def sign_in_with_otp(
+        self,
+        email: str,
+        redirect_to: str = "http://localhost:3000/auth/callback",
+        should_create_user: bool = False,
+    ) -> bool:
         """
         Send a Magic Link OTP email to the user via Supabase Auth.
 
@@ -144,6 +149,7 @@ class SupabaseClient:
         Args:
             email: Destination email address.
             redirect_to: Frontend callback URL that will receive the session tokens.
+            should_create_user: Whether to automatically create a user if not registered.
 
         Returns:
             True if the email was dispatched successfully, False otherwise.
@@ -157,7 +163,7 @@ class SupabaseClient:
         url = f"{self.url}/auth/v1/otp"
         payload: Dict[str, Any] = {
             "email": email,
-            "create_user": False,
+            "create_user": should_create_user,
         }
         headers = self._get_headers()
         # Supabase reads redirect_to from query parameter, not body

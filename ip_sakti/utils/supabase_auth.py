@@ -218,7 +218,11 @@ class SupabaseAuthService:
 
         clean_email = email.strip().lower()
         try:
-            self.client.sign_in_with_otp(email=clean_email, redirect_to=redirect_to)
+            self.client.sign_in_with_otp(
+                email=clean_email,
+                redirect_to=redirect_to,
+                should_create_user=False,
+            )
             return True, None
         except (ValueError, Exception) as exc:
             logger.error(f"Magic link send failed for {clean_email}: {exc}")
