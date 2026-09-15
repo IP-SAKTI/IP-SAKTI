@@ -10,6 +10,9 @@ The MVP is designed around authoritative and permitted knowledge sources and pro
 
 ---
 
+##Prototype / Demo & Resources
+https://youtu.be/Mh9fL7V3cxg
+
 ## 1. Problem
 
 Ayurvedic formulations and Traditional Knowledge involve complex interactions between:
